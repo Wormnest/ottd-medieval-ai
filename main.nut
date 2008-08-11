@@ -526,7 +526,8 @@ function MedievalAI::Start()
 	}
 	for(;;) {
 		local balance = AICompany.GetBankBalance(AICompany.MY_COMPANY)
-		local loan = AICompany.GetLoanAmount(dcef vvMY_COMPANY)
+		local loan = AICompany.GetLoanAmount()
+		local maxLoan = AICompany.GetMaxLoanAmount()
 		AILog.Info("Balance: " + balance + ", Loan: " + loan + ", Max Loan: " + maxLoan)
 		if(balance + (maxLoan - loan) > 20000) {
 			MedievalAI.BuildInterCityRoute(myCargos)
