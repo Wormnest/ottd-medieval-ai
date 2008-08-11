@@ -261,7 +261,7 @@ function Towns::BuildDepot(depotLocation)
 			AILog.Info("Building a depot")
 			AIRoad.BuildRoad(townTileList.Begin(), i);
 			AITile.DemolishTile(townTileList.Begin());
-			AISign.BuildSign(townTileList.Begin(), "Depot Here")
+			//AISign.BuildSign(townTileList.Begin(), "Depot Here")
 			if(!AIRoad.BuildRoadDepot(townTileList.Begin(), i)) {
 				AILog.Info(AIError.GetLastErrorString())
 			}
@@ -280,8 +280,8 @@ class Roads
 function Roads::BuildRoads(startTile, endTile)
 {
 	AILog.Info("Route Calculating...");
-	AISign.BuildSign(startTile.location, "1st Stop")
-	AISign.BuildSign(endTile.location, "2nd Stop")
+	//AISign.BuildSign(startTile.location, "1st Stop")
+	//AISign.BuildSign(endTile.location, "2nd Stop")
 	local currHeight = AITile.GetHeight(startTile.location);
 	local heightNeeded = AITile.GetHeight(endTile.location);
 	local hillPenalty = 0;
@@ -449,7 +449,7 @@ function Roads::BuildRoads(startTile, endTile)
 					}
 					node.h = AITile.GetDistanceManhattanToTile(i, endTile.location) * 10;
 					node.f = node.g + node.h
-					AISign.BuildSign(i, node.f + "")
+					//AISign.BuildSign(i, node.f + "")
 					if(node.h == 0) {
 						atEndTile = true
 					}
@@ -516,6 +516,9 @@ function MedievalAI::Start()
 		AISign.RemoveSign(i);
 	}
 	AILog.Info("Welcome to MedievalAI, enjoy your stay!");
+	AILog.Info(AICompany.GetLoanInterval() + "");
+	local loan = 1;
+	AICompany.SetLoanAmount(loan);
 	local myRoutes = Routes();
 	local myCargos = Cargos();
 	local gameSettings = Settings();
@@ -525,12 +528,16 @@ function MedievalAI::Start()
 		gameSettings.buildSlopes = true;
 	}
 	for(;;) {
-		local balance = AICompany.GetBankBalance(AICompany.MY_COMPANY)
-		local loan = AICompany.GetLoanAmount()
-		local maxLoan = AICompany.GetMaxLoanAmount()
-		AILog.Info("Balance: " + balance + ", Loan: " + loan + ", Max Loan: " + maxLoan)
-		if(balance + (maxLoan - loan) > 20000) {
-			MedievalAI.BuildInterCityRoute(myCargos)
+		local balance = AICompany.GetBankBalance(AICompany.MY_COMPANY);
+		local loan = AICompany.GetLoanAmount();
+		local maxLoan = AICompany.GetMaxLoanAmount();
+		if(balance > 20000) {
+			AILog.Info("Balance: " + balance + ", Loan: " + loan + ", Max Loan: " + maxLoan);
+			MedievalAI.BuildInterCityRoute(myCargos);
+		}
+		else if(maxLoan != loan) {
+			AILog.Info("Loaning Monies")
+			AICompany.SetLoanAmount(loan + 10000);
 		}
 	}
 }
