@@ -79,11 +79,23 @@ function Vehicles::AddVehiclesToRoute(passCargo, depot, firstStation, secondStat
 	adjTiles.Valuate(AITile.IsStationTile)
 	adjTiles.KeepValue(1)
 	local secondStation = adjTiles.Begin();
-	local currVehicle = AIVehicle.BuildVehicle(depot, busList.Begin())
 	
-	AIOrder.AppendOrder(currVehicle, firstStation, AIOrder.AIOF_NONE)
-	AIOrder.AppendOrder(currVehicle, secondStation, AIOrder.AIOF_NONE)
-	AIVehicle.StartStopVehicle(currVehicle)
+	local numBuses = AITile.GetDistanceManhattanToTile(firstStation, secondStation)/20
+	if(numBuses < 2) { 
+		numBuses += 2
+	}
+	
+	for(local i = 0; i < numBuses/2; i++) {
+		local currVehicle = AIVehicle.BuildVehicle(depot, busList.Begin())
+		AIOrder.AppendOrder(currVehicle, firstStation, AIOrder.AIOF_NONE)
+		AIOrder.AppendOrder(currVehicle, secondStation, AIOrder.AIOF_NONE)
+		AIVehicle.StartStopVehicle(currVehicle)
+		
+		currVehicle = AIVehicle.BuildVehicle(depot, busList.Begin())
+		AIOrder.AppendOrder(currVehicle, secondStation, AIOrder.AIOF_NONE)
+		AIOrder.AppendOrder(currVehicle, firstStation, AIOrder.AIOF_NONE)
+		AIVehicle.StartStopVehicle(currVehicle)
+	}
 }
 
 class Node
