@@ -6,19 +6,44 @@ class MedievalAI extends AIController
 	function Stop();
 	
 	function BuildInterCityRoute();
+	function KeepFlatSlopes(slopedTiles);
 }
 
 function MedievalAI::BuildInterCityRoute(cargos)
 {
+	AILog.Info("Starting Route");
 	local townUsing = Node()
-	townUsing = Towns.FindPassTown(500, null);
+	townUsing = Towns.FindPassTown(500, null, false);
 	local firstStop = Towns.BuildPassStation(-5, 5, townUsing, cargos);
-	local otherTown = Towns.FindPassTown(null, townUsing);
+	local otherTown = Towns.FindPassTown(null, townUsing, false);
 	local secondStop = Towns.BuildPassStation(-5, 5, otherTown, cargos);
 	if(Roads.BuildRoads(firstStop, secondStop)) {
 		local depot = Towns.BuildDepot(secondStop.location)
 		Vehicles.AddVehiclesToRoute(cargos, depot, firstStop, secondStop);
 	}
+	AILog.Info("Route Finished");
+}
+
+function MedievalAI::KeepFlatSlopes(slopedTiles)
+{
+	slopedTiles.Valuate(AITile.GetSlope);
+	slopedTiles.RemoveValue(AITile.SLOPE_W);
+	slopedTiles.RemoveValue(AITile.SLOPE_S);
+	slopedTiles.RemoveValue(AITile.SLOPE_E);
+	slopedTiles.RemoveValue(AITile.SLOPE_N);
+	slopedTiles.RemoveValue(AITile.SLOPE_STEEP);
+	slopedTiles.RemoveValue(AITile.SLOPE_NW);
+	slopedTiles.RemoveValue(AITile.SLOPE_SW);
+	slopedTiles.RemoveValue(AITile.SLOPE_SE);
+	slopedTiles.RemoveValue(AITile.SLOPE_NE);
+	slopedTiles.RemoveValue(AITile.SLOPE_EW);
+	slopedTiles.RemoveValue(AITile.SLOPE_NS);
+	slopedTiles.RemoveValue(AITile.SLOPE_STEEP_W);
+	slopedTiles.RemoveValue(AITile.SLOPE_STEEP_S);
+	slopedTiles.RemoveValue(AITile.SLOPE_STEEP_E);
+	slopedTiles.RemoveValue(AITile.SLOPE_STEEP_N);
+	slopedTiles.RemoveValue(AITile.SLOPE_INVALID);
+	return slopedTiles;
 }
 
 class Cargos
@@ -163,20 +188,32 @@ function Tile::GetAdjacentTiles(currNode)
 class Towns
 {
 	constructor()	
-	function FindPassTown(above, near);
+	function FindPassTown(above, near, occupied);
 	function BuildPassStation(rectStart, rectEnd, townUsing, cargos);
 	function BuildDepot(startTile);
 }
 
-function Towns::FindPassTown(above, near)
+function Towns::FindPassTown(above, near, occupied)
 {
 	local townList = AITownList();
+	local townTileList = AITileList();
 	
 	if(above != null && near != null) {
 		townList.Valuate(AITown.GetPopulation);
 		townList.KeepAboveValue(above);
 		townList.Valuate(AIBase.RandItem);	
 		townList.KeepTop(10);
+		townList.Valuate(AITown.GetLocation)
+		for(local i = townList.Begin(); townList.HasNext(); i = townList.Next()) {
+			townTileList.AddRectangle(AITown.GetLocation(i) - AIMap.GetTileIndex(5, 5), AITown.GetLocation(i) + AIMap.GetTileIndex(5, 5));
+			townTileList.Valuate(AITile.IsStationTile);
+			townTileList.KeepValue(1);
+			if(!townTileList.IsEmpty()) {
+				AILog.Info("Occupied: " + AITown.GetName(i))
+		 		townList.RemoveValue(AITown.GetLocation(i));
+			}
+			townTileList = AITileList();			
+		}
 		townList.Valuate(AITown.GetDistanceManhattanToTile, near.location)
 		townList.KeepBottom(1)
 	}
@@ -185,20 +222,41 @@ function Towns::FindPassTown(above, near)
 		townList.KeepAboveValue(above);
 		townList.Valuate(AIBase.RandItem);	
 		townList.KeepTop(10);
+		townList.Valuate(AITown.GetLocation)
+		for(local i = townList.Begin(); townList.HasNext(); i = townList.Next()) {
+			townTileList.AddRectangle(AITown.GetLocation(i) - AIMap.GetTileIndex(5, 5), AITown.GetLocation(i) + AIMap.GetTileIndex(5, 5));
+			townTileList.Valuate(AITile.IsStationTile);
+			townTileList.KeepValue(1);
+			if(!townTileList.IsEmpty()) {
+				AILog.Info("Occupied: " + AITown.GetName(i))
+		 		townList.RemoveValue(AITown.GetLocation(i));
+			}
+			townTileList = AITileList();					
+		}
 	}
 	else if(near != null) {
 		townList.Valuate(AITown.GetLocation)
 		townList.RemoveValue(near.location)
+		for(local i = townList.Begin(); townList.HasNext(); i = townList.Next()) {
+			townTileList.AddRectangle(AITown.GetLocation(i) - AIMap.GetTileIndex(5, 5), AITown.GetLocation(i) + AIMap.GetTileIndex(5, 5));
+			townTileList.Valuate(AITile.IsStationTile);
+			townTileList.KeepValue(1);
+			if(!townTileList.IsEmpty()) {
+				AILog.Info("Occupied: " + AITown.GetName(i))
+		 		townList.RemoveValue(AITown.GetLocation(i));
+			}
+			townTileList = AITileList();			
+		}
 		townList.Valuate(AITown.GetDistanceManhattanToTile, near.location)
 		townList.KeepBottom(1)
 	}
 	
-	if(townList == null) {
-		AILog.Info("No suitable towns found.")
-		AISign.BuildSign(0, "No suitable towns found.")
+	if(townList.IsEmpty()) {
+		AILog.Warning("No suitable towns found.")
 	}
 	local townFound = Node()
 	townFound.location = AITown.GetLocation(townList.Begin())
+	AILog.Info("Building in: " + AITown.GetName(townList.Begin()))
 	return townFound;
 }
 
@@ -207,20 +265,11 @@ function Towns::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 	local townList = AITownList();
 	local townTileList = AITileList();
 	townTileList.AddRectangle(townUsing.location - AIMap.GetTileIndex(rectStart, rectStart), townUsing.location - AIMap.GetTileIndex(rectEnd, rectEnd));
-	townTileList.Valuate(AITile.IsBuildable)
-	townTileList.KeepValue(1)
-	townTileList.Valuate(AITile.GetSlope)
-	for(local i = townTileList.Begin(); townTileList.HasNext(); i = townTileList.Next()) {
-		if(townTileList.GetValue(i) != 0 && townTileList.GetValue(i) != 7 && townTileList.GetValue(i) != 11 && townTileList.GetValue(i) != 13 && townTileList.GetValue(i) != 14) {
-			townTileList.RemoveValue(i)
-		}
-	}
-	for(local i = townTileList.Begin(); townTileList.HasNext(); i = townTileList.Next()) {
-		//AILog.Info(townTileList.GetValue(i) + "");
-	}
-	//townTileList.KeepValue(11)
-	//townTileList.KeepValue(13)
-	//townTileList.KeepValue(14)
+	townTileList.Valuate(AIRoad.IsRoadTile)
+	townTileList.KeepValue(0)
+	townTileList.Valuate(AITile.IsBuildable);
+	townTileList.KeepValue(1);
+	MedievalAI.KeepFlatSlopes(townTileList);
 	townTileList.Valuate(AIRoad.GetNeighbourRoadCount)
 	townTileList.KeepAboveValue(0)
 	townTileList.Valuate(AITile.GetCargoAcceptance, cargos.passengers, 1, 1, AIStation.GetCoverageRadius (AIStation.STATION_BUS_STOP))
@@ -235,7 +284,17 @@ function Towns::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 		if(AIRoad.IsRoadTile(i) && !isStationBuilt) {
 			AIRoad.BuildRoad(townTileList.Begin(), i);
 			AITile.DemolishTile(townTileList.Begin());
-			AIRoad.BuildRoadStation(townTileList.Begin(), i, false, false, false);
+			while(!AIRoad.BuildRoadStation(townTileList.Begin(), i, false, false, false)) {
+				AILog.Warning(AIError.GetLastErrorString());
+				switch (AIError.GetLastError()) {
+				case AIError.ERR_AREA_NOT_CLEAR:
+					AISign.BuildSign(townTileList.Begin(), "HERE");
+					AISign.BuildSign(i, "NO! HERE");
+					AITile.DemolishTile(townTileList.Begin());
+					break;
+				default:
+				}
+			}
 			thisStation.id = AIStation.GetStationID(i);
 			thisStation.location = i;
 			isStationBuilt = true
@@ -253,12 +312,7 @@ function Towns::BuildDepot(depotLocation)
 		townTileList.KeepValue(1)
 		townTileList.Valuate(AIRoad.GetNeighbourRoadCount)
 		townTileList.KeepAboveValue(0)
-		townTileList.Valuate(AITile.GetSlope)
-		for(local i = townTileList.Begin(); townTileList.HasNext(); i = townTileList.Next()) {
-			if(townTileList.GetValue(i) != 0 && townTileList.GetValue(i) != 7 && townTileList.GetValue(i) != 11 && townTileList.GetValue(i) != 13 && townTileList.GetValue(i) != 14) {
-				townTileList.RemoveValue(i)
-			}
-		}
+		MedievalAI.KeepFlatSlopes(townTileList);
 		if(!townTileList.IsEmpty()) {
 			depotLocation = townTileList.Begin()
 			AILog.Info("Found Depot Location: " + townTileList.Begin())
@@ -273,7 +327,6 @@ function Towns::BuildDepot(depotLocation)
 			AILog.Info("Building a depot")
 			AIRoad.BuildRoad(townTileList.Begin(), i);
 			AITile.DemolishTile(townTileList.Begin());
-			//AISign.BuildSign(townTileList.Begin(), "Depot Here")
 			if(!AIRoad.BuildRoadDepot(townTileList.Begin(), i)) {
 				AILog.Info(AIError.GetLastErrorString())
 			}
@@ -335,97 +388,97 @@ function Roads::BuildRoads(startTile, endTile)
 					if(AITile.GetSlope(i) != 0 && AITile.GetSlope(i) != 7 && AITile.GetSlope(i) != 11 && AITile.GetSlope(i) != 13 && AITile.GetSlope(i) != 14) {
 						//AILog.Info(AITile.GetSlope(i) + " <-- Slope")
 						if(i - AIMap.GetTileIndex(1, 0) == currNode.location) { //From the right
-							AILog.Info("From the right")
+							//AILog.Info("From the right")
 							if(AITile.GetSlope(i) == 4 || AITile.GetSlope(i) == 8 || AITile.GetSlope(i) == 12) { //Going Down
-								AILog.Info("Going down")
+								//AILog.Info("Going down")
 								if(currHeight < heightNeeded) {
-									AILog.Info("Less than")
+									//AILog.Info("Less than")
 									node.g += hillPenalty;
 									currHeight--
 									
 								} else if(currHeight > heightNeeded) {
-									AILog.Info("More than")
+									//AILog.Info("More than")
 									node.g -= hillPenalty;
 									currHeight--
 								}
 								else {
-									AILog.Info("Equal to")
+									//AILog.Info("Equal to")
 									node.g += hillPenalty;
 								}
 							}
 							if(AITile.GetSlope(i) == 1 || AITile.GetSlope(i) == 2 || AITile.GetSlope(i) == 3) { //Going Up
-								AILog.Info("Going up")
+								//AILog.Info("Going up")
 								if(currHeight < heightNeeded) {
-									AILog.Info("Less than")
+									//AILog.Info("Less than")
 									node.g -= hillPenalty;
 									currHeight++
 								} else if(currHeight > heightNeeded) {
-									AILog.Info("More than")
+									//AILog.Info("More than")
 									node.g += hillPenalty;
 									currHeight++
 								}
 								else {
-									AILog.Info("Equal to")
+									//AILog.Info("Equal to")
 									node.g += hillPenalty;
 								}
 							}
 						}
 						else if(i - AIMap.GetTileIndex(0, 1) == currNode.location) { //From the top
-							AILog.Info("From the top")
+							//AILog.Info("From the top")
 							if(AITile.GetSlope(i) == 2 || AITile.GetSlope(i) == 4 || AITile.GetSlope(i) == 6) { //Going up
 								if(currHeight < heightNeeded) {
-									AILog.Info("Less than")
+									//AILog.Info("Less than")
 									node.g -= hillPenalty;
 								} else if(currHeight > heightNeeded) {
-									AILog.Info("More than")
+									//AILog.Info("More than")
 									node.g += hillPenalty;
 								}
 								else {
-									AILog.Info("Equal to")
+									//AILog.Info("Equal to")
 									node.g += hillPenalty;
 								}
 							}
 							if(AITile.GetSlope(i) == 1 || AITile.GetSlope(i) == 8 || AITile.GetSlope(i) == 9) { //Going down
 								if(currHeight < heightNeeded) {
-									AILog.Info("Less than")
+									//AILog.Info("Less than")
 									node.g += hillPenalty;
 								} else if(currHeight > heightNeeded) {
-									AILog.Info("More than")
+									//AILog.Info("More than")
 									node.g -= hillPenalty;
 								}
 								else {
-									AILog.Info("Equal to")
+									//AILog.Info("Equal to")
 									node.g += hillPenalty;
 								}		
 							}
 						}					
 						else if(i - AIMap.GetTileIndex(-1, 0) == currNode.location) { //From the left
-							AILog.Info("From the left")
+							//AILog.Info("From the left")
 							if(AITile.GetSlope(i) == 4 || AITile.GetSlope(i) == 8 || AITile.GetSlope(i) == 12) { //Going up
-								AILog.Info("Going up")
+								//AILog.Info("Going up")
 								if(currHeight < heightNeeded) {
-									AILog.Info("Less than")
+									//AILog.Info("Less than")
 									node.g -= hillPenalty;
 								} else if(currHeight > heightNeeded) {
-									AILog.Info("More than")
+									//AILog.Info("More than")
 									node.g += hillPenalty;
 								}
 								else {
-									AILog.Info("Equal to")
+									//AILog.Info("Equal to")
 									node.g += hillPenalty;
 								}
 							}
 							if(AITile.GetSlope(i) == 1 || AITile.GetSlope(i) == 2 || AITile.GetSlope(i) == 3) { //Going down
-								AILog.Info("Going down")
+								//AILog.Info("Going down")
 								if(currHeight < heightNeeded) {
-									AILog.Info("Less than")
+									//AILog.Info("Less than")
 									node.g += hillPenalty;
 								} else if(currHeight > heightNeeded) {
-									AILog.Info("More than")
+									//AILog.Info("More than")
 									node.g -= hillPenalty;
 								}
 								else {
-									AILog.Info("Equal to")
+									//AILog.Info("Equal to")
 									node.g += hillPenalty;
 								}
 							}
@@ -438,7 +491,7 @@ function Roads::BuildRoads(startTile, endTile)
 									node.g -= hillPenalty;
 								}
 								else {
-									AILog.Info("Equal to")
+									//AILog.Info("Equal to")
 									node.g += hillPenalty;
 								}
 							}
@@ -449,7 +502,7 @@ function Roads::BuildRoads(startTile, endTile)
 									node.g += hillPenalty;
 								}
 								else {
-									AILog.Info("Equal to")
+									//AILog.Info("Equal to")
 									node.g += hillPenalty;
 								}		
 							}
