@@ -11,6 +11,39 @@ class MedievalAI extends AIController
 
 function MedievalAI::BuildInterCityRoute(cargos)
 {
+<<<<<<< .mine
+	AILog.Info("Starting Route");
+	local townUsing = false;
+	local otherTown = false;
+	local routeBuilt = false;
+	local routeAttempts = 0;
+	local routeRetries = 3;
+	while(routeBuilt == false && routeAttempts < routeRetries) {
+		local counter = 0;
+		local retries = 3;
+		while(townUsing == false && counter < retries) { 
+			townUsing = Towns.FindPassTown(500, null, false);
+			counter++;
+		}
+		if(townUsing != false) {
+			counter = 0;
+			local firstStop = Towns.BuildPassStation(-5, 5, townUsing, cargos);
+			while(otherTown == false && counter < retries) {
+				otherTown = Towns.FindPassTown(null, townUsing, false);
+				counter++;
+			}
+			if(otherTown != false) {
+				local secondStop = Towns.BuildPassStation(-5, 5, otherTown, cargos);
+				if(Roads.BuildRoads(firstStop, secondStop)) {
+					local depot = Towns.BuildDepot(secondStop.location)
+					Vehicles.AddVehiclesToRoute(cargos, depot, firstStop, secondStop);
+				}
+				AILog.Info("Route Finished");
+				return true
+			}
+		}
+		routeAttempts++;
+=======
 	AILog.Info("Starting Route");
 	local townUsing = Node()
 	townUsing = Towns.FindPassTown(500, null, false);
@@ -20,8 +53,14 @@ function MedievalAI::BuildInterCityRoute(cargos)
 	if(Roads.BuildRoads(firstStop, secondStop)) {
 		local depot = Towns.BuildDepot(secondStop.location)
 		Vehicles.AddVehiclesToRoute(cargos, depot, firstStop, secondStop);
+>>>>>>> .r6
 	}
+<<<<<<< .mine
+	Sleep(30);
+	return false;
+=======
 	AILog.Info("Route Finished");
+>>>>>>> .r6
 }
 
 function MedievalAI::KeepFlatSlopes(slopedTiles)
@@ -64,28 +103,14 @@ class Cargos
 	}
 }
 
-class Routes
-{
-	routes = null
-	numRoutes = null
-	constructor() {
-		routes = []
-		numRoutes = 0
-	}
-	
-	function AddStationToRoute(station);
-}
-
-function Routes::AddStationToRoute(station)
-{
-
-}
-
 class Vehicles
 {
 	constructor();
 	
 	function AddVehiclesToRoute(depot, firstStation, secondStation);
+	function CheckForNegativeIncome();
+	function SellInDepot();
+	function CheckForVehiclesNeeded(cargos);
 }
 
 function Vehicles::AddVehiclesToRoute(passCargo, depot, firstStation, secondStation)
@@ -105,7 +130,7 @@ function Vehicles::AddVehiclesToRoute(passCargo, depot, firstStation, secondStat
 	adjTiles.KeepValue(1)
 	local secondStation = adjTiles.Begin();
 	
-	local numBuses = AITile.GetDistanceManhattanToTile(firstStation, secondStation)/20
+	local numBuses = AITile.GetDistanceManhattanToTile(firstStation, secondStation)/10
 	if(numBuses < 2) { 
 		numBuses += 2
 	}
@@ -120,6 +145,82 @@ function Vehicles::AddVehiclesToRoute(passCargo, depot, firstStation, secondStat
 		AIOrder.AppendOrder(currVehicle, secondStation, AIOrder.AIOF_NONE)
 		AIOrder.AppendOrder(currVehicle, firstStation, AIOrder.AIOF_NONE)
 		AIVehicle.StartStopVehicle(currVehicle)
+	}
+}
+
+function Vehicles::CheckForNegativeIncome()
+{
+	AILog.Info("Checking for unprofitable vehicles...");
+	local negativeVehicles = AIVehicleList();
+	negativeVehicles.Valuate(AIVehicle.GetProfitLastYear);
+	negativeVehicles.KeepBelowValue(0);
+	for(local i = negativeVehicles.Begin(); negativeVehicles.HasNext(); i = negativeVehicles.Next()) {
+		AIVehicle.SendVehicleToDepot(i);
+	}
+}
+
+function Vehicles::SellInDepot()
+{
+	AILog.Info("Selling vehicles...");
+	local vehiclesInDepot = AIVehicleList();
+	vehiclesInDepot.Valuate(AIVehicle.IsStoppedInDepot);
+	vehiclesInDepot.KeepValue(1);
+	for(local i = vehiclesInDepot.Begin(); vehiclesInDepot.HasNext(); i = vehiclesInDepot.Next()) {
+		AIVehicle.SellVehicle(i);
+	}
+}
+
+function Vehicles::CheckForVehiclesNeeded(cargos)
+{
+	local busList = AIEngineList(AIVehicle.VEHICLE_ROAD)
+	
+	busList.Valuate(AIEngine.GetCargoType)
+	busList.KeepValue(cargos.passengers)
+	busList.Valuate(AIEngine.GetPrice)
+	busList.KeepBottom(1)
+	local passStations = AIStationList(AIStation.STATION_BUS_STOP);
+	AILog.Info("Pass Count: " + passStations.Count());
+	//foreach(station in passStations) {
+		//if(AIStation.GetCargoWaiting(station, cargos.passengers) < 100) {
+			//passStations.RemoveValue(station)
+		//}
+	//}
+	if(!passStations.IsEmpty()) {
+		for(local i = passStations.Begin(); passStations.HasNext(); i = passStations.Next()) {
+			if(AIStation.GetCargoWaiting(i, cargos.passengers) >= 100) { 
+				AILog.Info("There are more than (or equal to) 100 passengers waiting at " + AIStation.GetName(i)); 
+				local depotList = AITileList()
+				depotList.AddRectangle(AIStation.GetLocation(i) - AIMap.GetTileIndex(5, 5), AIStation.GetLocation(i) + AIMap.GetTileIndex(5, 5));
+				AILog.Info("Count : " + depotList.Count());
+				AISign.BuildSign(AIStation.GetLocation(i), "Count: " + depotList.Count());
+				depotList.Valuate(AIRoad.IsRoadDepotTile);
+				AILog.Info("depotList: " + depotList.Begin());
+				depotList.KeepValue(1);
+				if(depotList.IsEmpty()) {
+					AILog.Info("Building a depot");
+					local depotLocation = Towns.BuildDepot(AIStation.GetLocation(i));
+					AILog.Info(AIError.GetLastErrorString());
+					if(AIRoad.IsRoadDepotTile(depotLocation)) {AILog.Info("There IS a depot!")}
+					local vehiclesAtStation = AIVehicleList_Station(i);
+					local newVehicle = AIVehicle.CloneVehicle(depotLocation, vehiclesAtStation.Begin(), true);
+					//local otherNewVehicle = AIVehicle.BuildVehicle(depotList.Begin(), busList.Begin());
+					AILog.Info(AIError.GetLastErrorString());
+					AIVehicle.StartStopVehicle(newVehicle);
+					AILog.Info(AIError.GetLastErrorString());
+				}
+				else {
+					AILog.Info("Count: " + depotList.Count());
+					if(AIRoad.IsRoadDepotTile(depotList.Begin())) {AILog.Info("There IS a depot!")}
+					depotList.Valuate(AITown.GetLocation);
+					local vehiclesAtStation = AIVehicleList_Station(i);
+					local newVehicle = AIVehicle.CloneVehicle(depotList.Begin(), vehiclesAtStation.Begin(), true);
+					//local otherNewVehicle = AIVehicle.BuildVehicle(depotList.Begin(), busList.Begin());
+					AILog.Info(AIError.GetLastErrorString());
+					AIVehicle.StartStopVehicle(newVehicle);
+					AILog.Info(AIError.GetLastErrorString());
+				}
+			}
+		}
 	}
 }
 
@@ -203,6 +304,19 @@ function Towns::FindPassTown(above, near, occupied)
 		townList.KeepAboveValue(above);
 		townList.Valuate(AIBase.RandItem);	
 		townList.KeepTop(10);
+<<<<<<< .mine
+		townList.Valuate(AITown.GetLocation)
+		for(local i = townList.Begin(); townList.HasNext(); i = townList.Next()) {
+			townTileList.AddRectangle(AITown.GetLocation(i) - AIMap.GetTileIndex(5, 5), AITown.GetLocation(i) + AIMap.GetTileIndex(5, 5));
+			townTileList.Valuate(AITile.IsStationTile);
+			townTileList.KeepValue(1);
+			if(!townTileList.IsEmpty()) {
+				//AILog.Info("Occupied: " + AITown.GetName(i))
+		 		townList.RemoveValue(AITown.GetLocation(i));
+			}
+			townTileList = AITileList();			
+		}
+=======
 		townList.Valuate(AITown.GetLocation)
 		for(local i = townList.Begin(); townList.HasNext(); i = townList.Next()) {
 			townTileList.AddRectangle(AITown.GetLocation(i) - AIMap.GetTileIndex(5, 5), AITown.GetLocation(i) + AIMap.GetTileIndex(5, 5));
@@ -214,6 +328,7 @@ function Towns::FindPassTown(above, near, occupied)
 			}
 			townTileList = AITileList();			
 		}
+>>>>>>> .r6
 		townList.Valuate(AITown.GetDistanceManhattanToTile, near.location)
 		townList.KeepBottom(1)
 	}
@@ -222,6 +337,19 @@ function Towns::FindPassTown(above, near, occupied)
 		townList.KeepAboveValue(above);
 		townList.Valuate(AIBase.RandItem);	
 		townList.KeepTop(10);
+<<<<<<< .mine
+		townList.Valuate(AITown.GetLocation)
+		for(local i = townList.Begin(); townList.HasNext(); i = townList.Next()) {
+			townTileList.AddRectangle(AITown.GetLocation(i) - AIMap.GetTileIndex(5, 5), AITown.GetLocation(i) + AIMap.GetTileIndex(5, 5));
+			townTileList.Valuate(AITile.IsStationTile);
+			townTileList.KeepValue(1);
+			if(!townTileList.IsEmpty()) {
+				//AILog.Info("Occupied: " + AITown.GetName(i))
+		 		townList.RemoveValue(AITown.GetLocation(i));
+			}
+			townTileList = AITileList();					
+		}
+=======
 		townList.Valuate(AITown.GetLocation)
 		for(local i = townList.Begin(); townList.HasNext(); i = townList.Next()) {
 			townTileList.AddRectangle(AITown.GetLocation(i) - AIMap.GetTileIndex(5, 5), AITown.GetLocation(i) + AIMap.GetTileIndex(5, 5));
@@ -233,10 +361,23 @@ function Towns::FindPassTown(above, near, occupied)
 			}
 			townTileList = AITileList();					
 		}
+>>>>>>> .r6
 	}
 	else if(near != null) {
 		townList.Valuate(AITown.GetLocation)
 		townList.RemoveValue(near.location)
+<<<<<<< .mine
+		for(local i = townList.Begin(); townList.HasNext(); i = townList.Next()) {
+			townTileList.AddRectangle(AITown.GetLocation(i) - AIMap.GetTileIndex(5, 5), AITown.GetLocation(i) + AIMap.GetTileIndex(5, 5));
+			townTileList.Valuate(AITile.IsStationTile);
+			townTileList.KeepValue(1);
+			if(!townTileList.IsEmpty()) {
+				//AILog.Info("Occupied: " + AITown.GetName(i))
+		 		townList.RemoveValue(AITown.GetLocation(i));
+			}
+			townTileList = AITileList();			
+		}
+=======
 		for(local i = townList.Begin(); townList.HasNext(); i = townList.Next()) {
 			townTileList.AddRectangle(AITown.GetLocation(i) - AIMap.GetTileIndex(5, 5), AITown.GetLocation(i) + AIMap.GetTileIndex(5, 5));
 			townTileList.Valuate(AITile.IsStationTile);
@@ -247,17 +388,33 @@ function Towns::FindPassTown(above, near, occupied)
 			}
 			townTileList = AITileList();			
 		}
+>>>>>>> .r6
 		townList.Valuate(AITown.GetDistanceManhattanToTile, near.location)
 		townList.KeepBottom(1)
 	}
 	
+<<<<<<< .mine
+	if(townList.IsEmpty()) {
+		AILog.Warning("No suitable towns found.");
+		return false;
+=======
 	if(townList.IsEmpty()) {
 		AILog.Warning("No suitable towns found.")
+>>>>>>> .r6
 	}
+<<<<<<< .mine
+	else {
+		local townFound = Node()
+		townFound.location = AITown.GetLocation(townList.Begin())
+		AILog.Info("Building in: " + AITown.GetName(townList.Begin()) + " (" + townList.Begin() + ")")
+		return townFound;
+	}
+=======
 	local townFound = Node()
 	townFound.location = AITown.GetLocation(townList.Begin())
 	AILog.Info("Building in: " + AITown.GetName(townList.Begin()))
 	return townFound;
+>>>>>>> .r6
 }
 
 function Towns::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
@@ -584,9 +741,12 @@ function MedievalAI::Start()
 	AILog.Info(AICompany.GetLoanInterval() + "");
 	local loan = 1;
 	AICompany.SetLoanAmount(loan);
-	local myRoutes = Routes();
 	local myCargos = Cargos();
 	local gameSettings = Settings();
+	
+	local month = AIDate.GetCurrentDate();
+	month = AIDate.GetMonth(month);
+	local newMonth = 0;
 	
 	if(AIGameSettings.IsValid("construction.build_on_slopes") && AIGameSettings.GetValue("construction.build_on_slopes")) {
 		AILog.Info("Can Build on Slopes");
@@ -596,6 +756,22 @@ function MedievalAI::Start()
 		local balance = AICompany.GetBankBalance(AICompany.MY_COMPANY);
 		local loan = AICompany.GetLoanAmount();
 		local maxLoan = AICompany.GetMaxLoanAmount();
+		if(balance > (loan / 2)) {
+			if(balance > loan) {
+				AICompany.SetLoanAmount(0);
+			}
+			else {
+				AICompany.SetLoanAmount(loan / 2);
+			}
+		}
+		newMonth = AIDate.GetCurrentDate()
+		newMonth = AIDate.GetMonth(newMonth)
+		if(newMonth - 3 == month) {
+			month = newMonth;
+			Vehicles.CheckForNegativeIncome();
+			Vehicles.SellInDepot();
+			Vehicles.CheckForVehiclesNeeded(myCargos);
+		}
 		if(balance > 20000) {
 			AILog.Info("Balance: " + balance + ", Loan: " + loan + ", Max Loan: " + maxLoan);
 			MedievalAI.BuildInterCityRoute(myCargos);
