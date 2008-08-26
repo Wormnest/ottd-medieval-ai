@@ -71,7 +71,7 @@ function Towns::FindPassTown(above, near, occupied)
 	}
 
 	else {
-		local townFound = Node()
+		local townFound = Tile()
 		townFound.location = AITown.GetLocation(townList.Begin())
 		AILog.Info("Building in: " + AITown.GetName(townList.Begin()) + " (" + townList.Begin() + ")")
 		return townFound;
@@ -89,7 +89,20 @@ function Towns::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 	townTileList.KeepValue(0);
 	townTileList.Valuate(AITile.IsBuildable);
 	townTileList.KeepValue(1);
-	KeepFlatSlopes(townTileList);
+	townTileList.Valuate(function (tile) {
+		switch(AITile.GetSlope(tile)) {
+			case AITile.SLOPE_FLAT:
+			case AITile.SLOPE_NWS:
+			case AITile.SLOPE_WSE:
+			case AITile.SLOPE_SEN:
+			case AITile.SLOPE_ENW:
+				return 0;
+			
+			default:
+				return 1;
+		}
+	})
+	townTileList.KeepValue(0); 
 	townTileList.Valuate(AIRoad.GetNeighbourRoadCount);
 	townTileList.KeepAboveValue(0);
 	townTileList.Valuate(AITile.IsStationTile);
@@ -100,12 +113,12 @@ function Towns::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 	}
 	townTileList.Valuate(AITile.GetCargoAcceptance, cargos.passengers, 1, 1, stationRadius);
 	townTileList.KeepTop(1);
-	local randTile = Node();
+	local randTile = Tile();
 	townTileList.Valuate(AIBase.RandItem);
 	randTile.location = townTileList.Begin();
 	local adjacentTiles = GetAdjacentTiles(randTile.location);
 	local isStationBuilt = false;
-	local thisStation = Node();
+	local thisStation = Tile();
 	for(local i = adjacentTiles.Begin(); adjacentTiles.HasNext(); i = adjacentTiles.Next()) {
 		if(AIRoad.IsRoadTile(i) && !isStationBuilt) {
 			AIRoad.BuildRoad(townTileList.Begin(), i);
@@ -120,8 +133,7 @@ function Towns::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 				default:
 				}
 			}
-			thisStation.id = AIStation.GetStationID(i);
-			thisStation.location = i;
+			thisStation.SetAttribs(townTileList.Begin());
 			isStationBuilt = true
 		}
 	}
@@ -137,7 +149,20 @@ function Towns::BuildDepot(depotLocation)
 		townTileList.KeepValue(1)
 		townTileList.Valuate(AIRoad.GetNeighbourRoadCount)
 		townTileList.KeepAboveValue(0)
-		KeepFlatSlopes(townTileList);
+		townTileList.Valuate(function (tile) {
+			switch(AITile.GetSlope(tile)) {
+				case AITile.SLOPE_FLAT:
+				case AITile.SLOPE_NWS:
+				case AITile.SLOPE_WSE:
+				case AITile.SLOPE_SEN:
+				case AITile.SLOPE_ENW:
+					return 0;
+			
+				default:
+					return 1;
+			}
+		})
+	townTileList.KeepValue(0); 
 		if(!townTileList.IsEmpty()) {
 			depotLocation = townTileList.Begin()
 			AILog.Info("Found Depot Location: " + townTileList.Begin())
