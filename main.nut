@@ -20,10 +20,21 @@ function MedievalAI::Start()
 {
 	this.Sleep(1);
 	//NAME COMPANY
-	if (!AICompany.SetCompanyName("MedievalAI")) {
-		local i = 2;
-		while (!AICompany.SetCompanyName("MedievalAI #" + i)) {
-			i = i + 1;
+	if (!AICompany.SetCompanyName("MedievalAI the 1st")) {
+		if (!AICompany.SetCompanyName("MedievalAI the 2nd")) {
+			if (!AICompany.SetCompanyName("MedievalAI the 3rd")) {
+				if (!AICompany.SetCompanyName("MedievalAI the 4th")) {
+					if (!AICompany.SetCompanyName("MedievalAI the 5th")) {
+						if (!AICompany.SetCompanyName("MedievalAI the 6th")) {
+							if (!AICompany.SetCompanyName("MedievalAI the 7th")) {
+								if (!AICompany.SetCompanyName("MedievalAI the 8th")) {
+									AICompany.SetCompanyName("Default Name, All others taken")
+								}
+							}
+						}
+					}
+				}
+			}
 		}
 	}
 	//REMOVE SIGNS
@@ -81,7 +92,7 @@ function MedievalAI::Start()
 			Vehicles.SellInDepot();
 			(balance > 5000) ? Vehicles.CheckForVehiclesNeeded(myCargos) : loanNeeded = true;
 		}
-		
+	
 		(balance > 20000) ?	MedievalAI.BuildInterCityRoute(myCargos) : loanNeeded = true;
 	}
 }
@@ -95,7 +106,7 @@ function MedievalAI::BuildInterCityRoute(cargos)
 	local counter = 0;
 	local retries = 3;
 	while(townUsing == false && counter < retries) { 
-		townUsing = Towns.FindPassTown(1000, null, false);
+		townUsing = Towns.FindPassTown(20, null, false);
 		counter++;
 	}
 	if(townUsing != false) {
@@ -107,7 +118,7 @@ function MedievalAI::BuildInterCityRoute(cargos)
 		}
 		if(otherTown != false) {
 			local secondStop = Towns.BuildPassStation(-5, 5, otherTown, cargos);
-			if(Pathfinding.FindPath(firstStop, secondStop)) {
+			if(Paths.FindPath(firstStop, secondStop)) { 
 				local depot = Towns.BuildDepot(secondStop.location)
 				Vehicles.AddVehiclesToRoute(cargos, depot, firstStop, secondStop);
 			}
@@ -121,26 +132,8 @@ function MedievalAI::BuildInterCityRoute(cargos)
 	AILog.Info("Route Finished");
 }
 
-function KeepFlatSlopes(slopedTiles)
+function KeepFlatSlopes(tile)
 {
-	slopedTiles.Valuate(AITile.GetSlope);
-	slopedTiles.RemoveValue(AITile.SLOPE_W);
-	slopedTiles.RemoveValue(AITile.SLOPE_S);
-	slopedTiles.RemoveValue(AITile.SLOPE_E);
-	slopedTiles.RemoveValue(AITile.SLOPE_N);
-	slopedTiles.RemoveValue(AITile.SLOPE_STEEP);
-	slopedTiles.RemoveValue(AITile.SLOPE_NW);
-	slopedTiles.RemoveValue(AITile.SLOPE_SW);
-	slopedTiles.RemoveValue(AITile.SLOPE_SE);
-	slopedTiles.RemoveValue(AITile.SLOPE_NE);
-	slopedTiles.RemoveValue(AITile.SLOPE_EW);
-	slopedTiles.RemoveValue(AITile.SLOPE_NS);
-	slopedTiles.RemoveValue(AITile.SLOPE_STEEP_W);
-	slopedTiles.RemoveValue(AITile.SLOPE_STEEP_S);
-	slopedTiles.RemoveValue(AITile.SLOPE_STEEP_E);
-	slopedTiles.RemoveValue(AITile.SLOPE_STEEP_N);
-	slopedTiles.RemoveValue(AITile.SLOPE_INVALID);
-	return slopedTiles;
 }
 
 class Cargos
@@ -169,6 +162,54 @@ function GetAdjacentTiles(currNode)
 	adjTiles.AddTile(currNode - AIMap.GetTileIndex(-1,0));
 	adjTiles.AddTile(currNode - AIMap.GetTileIndex(0,-1));
 	adjTiles.Valuate(AITown.GetLocation);
+	return adjTiles;		
+}
+
+function GetBuildableAdjacentTiles(currTile)
+{
+	local adjTiles = AITileList();
+	local NE_TILE = Tile();
+		NE_TILE.SetAttribs(currTile.location - AIMap.GetTileIndex(1,0));
+	local SW_TILE = Tile();
+		SW_TILE.SetAttribs(currTile.location + AIMap.GetTileIndex(1,0));
+	local NW_TILE = Tile();
+		NW_TILE.SetAttribs(currTile.location - AIMap.GetTileIndex(0,1));
+	local SE_TILE = Tile();
+		SE_TILE.SetAttribs(currTile.location + AIMap.GetTileIndex(0,1));
+
+	// switch(currTile.slope)
+	// {
+		// case AITile.SLOPE_FLAT:
+		// case AITile.SLOPE_NWS:
+		// case AITile.SLOPE_WSE:
+		// case AITile.SLOPE_SEN:
+		// case AITile.SLOPE_ENW:
+			adjTiles.AddTile(NE_TILE.location);
+			adjTiles.AddTile(SW_TILE.location);
+			adjTiles.AddTile(NW_TILE.location);
+			adjTiles.AddTile(SE_TILE.location);
+			// break;
+		
+		// case AITile.SLOPE_NW:
+			// adjTiles.AddTile(NW_TILE.location);
+			// adjTiles.AddTile(SE_TILE.location);
+			// break;
+		// case AITile.SLOPE_SW:
+			// adjTiles.AddTile(NE_TILE.location);
+			// adjTiles.AddTile(SW_TILE.location);
+			// break;
+		// case AITile.SLOPE_SE:
+			// adjTiles.AddTile(NW_TILE.location);
+			// adjTiles.AddTile(SE_TILE.location);
+			// break;
+		// case AITile.SLOPE_NE:
+			// adjTiles.AddTile(NE_TILE.location);
+			// adjTiles.AddTile(SW_TILE.location);
+			// break;
+
+		// default:
+			// AILog.Warning("Slope not supported");
+	// }
 	return adjTiles;		
 }
 

@@ -82,7 +82,7 @@ function Vehicles::CheckForVehiclesNeeded(cargos)
 				local balance = AICompany.GetBankBalance(AICompany.MY_COMPANY);
 				local loan = AICompany.GetLoanAmount();
 				local maxLoan = AICompany.GetMaxLoanAmount();
-				AILog.Info("There are more than (or equal to) 100 passengers waiting at " + AIStation.GetName(i)); 
+				AILog.Info("Station needs updating: " + AIStation.GetName(i)); 
 				local depotList = AITileList()
 				depotList.AddRectangle(AIStation.GetLocation(i) - AIMap.GetTileIndex(5, 5), AIStation.GetLocation(i) + AIMap.GetTileIndex(5, 5));
 				//AILog.Info("Count : " + depotList.Count());
