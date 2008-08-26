@@ -8,8 +8,13 @@ class Vehicles
 	function CheckForVehiclesNeeded(cargos);
 }
 
-function Vehicles::AddVehiclesToRoute(passCargo, depot, firstStation, secondStation)
+function Vehicles::AddVehiclesToRoute(passCargo, depot, fakeFirstStation, fakeSecondStation)
 {
+	local firstStation = Tile();
+		firstStation.SetAttribs(AIRoad.GetRoadStationFrontTile(fakeFirstStation.location));
+	local secondStation = Tile();
+		secondStation.SetAttribs(AIRoad.GetRoadStationFrontTile(fakeSecondStation.location));	
+
 	local busList = AIEngineList(AIVehicle.VEHICLE_ROAD)
 	
 	busList.Valuate(AIEngine.GetCargoType)

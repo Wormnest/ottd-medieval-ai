@@ -9,7 +9,6 @@ class Paths
 function Paths::FindPath(startTile, endTile)
 {
 	AILog.Info("Path starts at: " + AIStation.GetName(AIStation.GetStationID(startTile.location)) + " Station");
-	AILog.Info(3/2 + "");
 	AILog.Info("Path finishes at: " + AIStation.GetName(AIStation.GetStationID(endTile.location)) + " Station");
 	local isPathBuilt = false;
 	local closedList = AITileList();
@@ -18,35 +17,29 @@ function Paths::FindPath(startTile, endTile)
 	AILog.Info(binaryHeap.len() - 1 + "");
 	local lowestHeur = Node();
 		lowestHeur.tile.SetAttribs(AIRoad.GetRoadStationFrontTile(startTile.location));
-		lowestHeur.h = AITile.GetDistanceManhattanToTile(AIRoad.GetRoadStationFrontTile(startTile.location), AIRoad.GetRoadStationFrontTile(endTile.location));
+		lowestHeur.h = AITile.GetDistanceManhattanToTile(AIRoad.GetRoadStationFrontTile(startTile.location), AIRoad.GetRoadStationFrontTile(endTile.location)) * 100;
 	local currNode = Node();
 		currNode.tile.SetAttribs(AIRoad.GetRoadStationFrontTile(startTile.location));
 		currNode.parentNode = Node()
 		currNode.parentNode.tile.SetAttribs(AIRoad.GetRoadStationFrontTile(startTile.location));
-		currNode.h = AITile.GetDistanceManhattanToTile(AIRoad.GetRoadStationFrontTile(startTile.location), AIRoad.GetRoadStationFrontTile(endTile.location));
+		currNode.h = AITile.GetDistanceManhattanToTile(AIRoad.GetRoadStationFrontTile(startTile.location), AIRoad.GetRoadStationFrontTile(endTile.location)) * 100;
 	local endNode = Node();
 		endNode.tile.SetAttribs(AIRoad.GetRoadStationFrontTile(endTile.location));
 	while(!isPathBuilt)
 	{
 		local adjTiles = GetAdjacentTiles(currNode.tile.location);
-		AISign.BuildSign(currNode.tile.location, "Parent: " + currNode.h);
+		//AISign.BuildSign(currNode.tile.location, "Parent: " + currNode.h);
 		for(local i = adjTiles.Begin(); adjTiles.HasNext(); i = adjTiles.Next())
 		{
-			if(i == endNode.tile.location)
-			{
-				AILog.Info("Path Found!");
-				isPathBuilt = true;
-				break;
-			}
 			if(!closedList.HasItem(i))
 			{
 				if(AITile.IsBuildable(i) || AIRoad.IsRoadTile(i))
 				{
 					local node = Node();
 					node.tile.SetAttribs(i);
-					node.h = AITile.GetDistanceManhattanToTile(i, endNode.tile.location);
+					node.h = AITile.GetDistanceManhattanToTile(i, endNode.tile.location) * 100;
 					node.parentNode = currNode;
-					AISign.BuildSign(i, "Child: " + node.h);
+					//AISign.BuildSign(i, "Child: " + node.h);
 					binaryHeap.append(node);
 					AILog.Info(binaryHeap.len() - 1 + "");
 					if(binaryHeap.len() - 1 > 1)
@@ -83,14 +76,22 @@ function Paths::FindPath(startTile, endTile)
 		currNode = lowestHeur;
 		currNode.tile.SetAttribs(lowestHeur.tile.location);
 		closedList.AddTile(currNode.tile.location);
+		if(currNode.tile.location == endNode.tile.location)
+			{
+				AILog.Info("Path Found!");
+				isPathBuilt = true;
+				break;
+			}
 	}
 	Paths.BuildPath(currNode);
+	return true;
 }
 
 function Paths::BuildPath(startTile)
 {
 	for(; startTile.parentNode != null; startTile = startTile.parentNode)
 	{
+		AILog.Info("Building from: " + startTile.tile.location + " to " + startTile.parentNode.tile.location);
 		AIRoad.BuildRoad(startTile.tile.location, startTile.parentNode.tile.location);
 	}
 }
