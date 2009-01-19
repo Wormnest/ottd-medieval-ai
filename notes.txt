@@ -1,0 +1,38 @@
+NoAI Notes
+
+--SETTING LOAN--
+AICompany.SetLoanAmount(0);
+
+--CHECK IF TURNING/GOING STRAIGHT
+AILog.Info("Straight: " + AITile.GetDistanceSquareToTile(1, 3));
+AILog.Info("Turn: " + AITile.GetDistanceSquareToTile(1, 258));
+AISign.BuildSign(1, "1");
+AISign.BuildSign(3, "3");
+AISign.BuildSign(258, "258");
+
+--PAYING BACK LOAN-- *OLD*
+if(balance > (loan - 100000)) 
+{
+	//AILog.Info("Paying Back Loan");
+	if(balance > (loan - 50000)) 
+	{
+		if(balance > loan) 
+		{
+			AICompany.SetLoanAmount(0);
+		}
+		else 
+		{
+			AICompany.SetLoanAmount(loan - 50000);
+		}
+	}
+	else 
+	{
+		AICompany.SetLoanAmount(loan - 100000);
+	}
+}
+
+--LIST CARGOS-- *FREIGHT*
+for(local i = cargoList.Begin(); cargoList.HasNext(); i = cargoList.Next())
+{
+	AILog.Info(AICargo.GetCargoLabel(i));
+}
