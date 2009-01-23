@@ -6,7 +6,7 @@ class Paths
 	NW = 3;
 	SW = 4;
 	
-	function FindPath(startTile, endTile);
+	function FindPath(startTile, endTile, truck);
 	function BuildPath(startTile);
 	function GetTilePenalties(node);
 	function AddCostToRoute(node, routeCost);
@@ -70,7 +70,7 @@ function Paths::AddCostToRoute(node, routeCost)
 	return routeCost;
 }
 
-function Paths::FindPath(startTile, endTile)
+function Paths::FindPath(startTile, endTile, truck)
 {
 	AILog.Info("Path starts at: " + AIStation.GetName(AIStation.GetStationID(startTile.location)) + " Station");
 	AILog.Info("Path finishes at: " + AIStation.GetName(AIStation.GetStationID(endTile.location)) + " Station");
@@ -85,6 +85,7 @@ function Paths::FindPath(startTile, endTile)
 	//AILog.Info(binaryHeap.len() - 1 + "");
 	local lowestHeur = Node();
 		lowestHeur.tile.SetAttribs(AIRoad.GetRoadStationFrontTile(startTile.location));
+		AISign.BuildSign(AIRoad.GetRoadStationFrontTile(startTile.location), "Front");
 		lowestHeur.h = AITile.GetDistanceManhattanToTile(AIRoad.GetRoadStationFrontTile(startTile.location), AIRoad.GetRoadStationFrontTile(endTile.location)) * 100;
 	local currNode = Node();
 		currNode.tile.SetAttribs(AIRoad.GetRoadStationFrontTile(startTile.location));
@@ -102,7 +103,7 @@ function Paths::FindPath(startTile, endTile)
 		{
 			if(!closedList.HasItem(i))
 			{
-				if(AITile.IsBuildable(i) || AIRoad.IsRoadTile(i))
+				if(AITile.IsBuildable(i) || (AIRoad.IsRoadTile(i) && CanBuildRoadBetween(currNode.tile.location, i)))
 				{
 					//AISign.BuildSign(i, "Child");
 					local node = Node();
@@ -158,8 +159,6 @@ function Paths::FindPath(startTile, endTile)
 				break;
 			}
 	}
-	routeCost += 2000;
-	AILog.Info("Route cost (+$2000): " + (routeCost) + ", Bank balance: " + AICompany.GetBankBalance(AICompany.COMPANY_SELF));
 	Paths.BuildPath(currNode);
 	return true;
 }
@@ -180,7 +179,7 @@ function Paths::BuildPath(startTile)
 		}
 		routeCost = costs.GetCosts();
 	}
-	AILog.Info("Real route cost: " + routeCost);
+	AILog.Info("Real route cost: $" + routeCost);
 	
 	if(routeCost > GetBalance())
 	{
@@ -204,6 +203,17 @@ function Paths::BuildPath(startTile)
 			}
 		}
 	}
+}
+
+function CanBuildRoadBetween(start, end)
+{
+	local testMode = AITestMode()
+	if(AIRoad.BuildRoad(start, end))
+		return true;
+	else if(AIError.GetLastError() == AIError.ERR_ALREADY_BUILT)
+		return true;
+	else
+		return false;
 }
 
 class Tile

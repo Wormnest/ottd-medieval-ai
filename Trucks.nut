@@ -36,10 +36,7 @@ function Trucks::BuildTruckRoute()
 	}
 	
 	AILog.Info("Num. Industries: " + rawIndustryList.Count());
-	for(local i = rawIndustryList.Begin(); rawIndustryList.HasNext(); i = rawIndustryList.Next())
-	{
-		AILog.Info(AIIndustry.GetName(i));
-	}
+
 	local cargoList = AICargoList();
 	cargoList.Valuate(AICargo.IsFreight);
 	cargoList.KeepValue(1);
@@ -51,8 +48,9 @@ function Trucks::BuildTruckRoute()
 	
 	cargoList.Valuate(AICargo.GetCargoIncome, 20, 200)
 	cargoList.KeepTop(3);
+	cargoList.Valuate(AIBase.RandItem);
+	cargoList.KeepTop(1);
 	local cargoInUse = cargoList.Begin();
-	Vehicles.CheckForVehiclesNeeded(cargoInUse);
 	AILog.Info(AICargo.GetCargoLabel(cargoInUse) + " is the most effective cargo to transport.");
 	rawIndustryList = AIIndustryList_CargoProducing(cargoInUse);
 	rawIndustryList.Valuate(AIIndustry.GetAmountOfStationsAround);
@@ -70,7 +68,7 @@ function Trucks::BuildTruckRoute()
 	{
 		AILog.Info("In the loop");
 		local length = AIIndustry.GetDistanceManhattanToTile(i, startTile);
-		if(length > 20 && length < 100)
+		if(length > 20 && length < 200)
 		{
 			industry = i;
 			break;
@@ -86,7 +84,7 @@ function Trucks::BuildTruckRoute()
 		AILog.Info("Taking cargo to " + AIIndustry.GetName(industry));
 		local startStation = Trucks.BuildTruckStation(startTile, cargoInUse, true);
 		local endStation = Trucks.BuildTruckStation(AIIndustry.GetLocation(industry), cargoInUse, false);
-		Paths.FindPath(startStation, endStation);
+		Paths.FindPath(startStation, endStation, true);
 		local depot = BuildRoadDepot(startStation.location);
 		Vehicles.AddVehiclesToRoute(cargoInUse, depot, startStation, endStation);
 	}
@@ -128,12 +126,39 @@ function Trucks::BuildTruckStation(industryUsing, cargo, start)
 		townTileList.Valuate(AITile.GetCargoAcceptance, cargo, 1, 1, stationRadius);
 		townTileList.KeepAboveValue(7);
 	}
-	townTileList.KeepTop(1);
+
 	//townTileList.Valuate(AITown.GetLocation);
 	local randTile = Tile();
-	
-	randTile.SetAttribs(townTileList.Begin());
-	local adjacentTiles = GetAdjacentTiles(randTile.location, false);
+	local adjacentTiles = AITileList();
+	for(local tile = townTileList.Begin(); townTileList.HasNext(); tile = townTileList.Next())
+	{
+		while(adjacentTiles.Count() < 3)
+		{
+			randTile.SetAttribs(tile);
+			adjacentTiles = GetAdjacentTiles(randTile.location, false);
+			adjacentTiles.Valuate(function (tile) {
+				switch(AITile.GetSlope(tile)) {
+					case AITile.SLOPE_FLAT:
+					case AITile.SLOPE_NWS:
+					case AITile.SLOPE_WSE:
+					case AITile.SLOPE_SEN:
+					case AITile.SLOPE_ENW:
+						return 0;
+					
+					default:
+						return 1;
+				}
+			})
+			adjacentTiles.KeepValue(0);
+			AILog.Info("aT:C - " + adjacentTiles);
+			// if(adjacentTiles.Count() > 2)
+				// break;
+		}
+	}
+	AILog.Info("aT:C - " + adjacentTiles);
+	//if(adjacentTiles.Count() > 2)
+		//	return false;
+			
 	local isStationBuilt = false;
 	local thisStation = Tile();
 	for(local i = adjacentTiles.Begin(); adjacentTiles.HasNext(); i = adjacentTiles.Next()) {
@@ -141,7 +166,7 @@ function Trucks::BuildTruckStation(industryUsing, cargo, start)
 			AITile.DemolishTile(townTileList.Begin());
 			AIRoad.BuildRoad(townTileList.Begin(), i);
 			AITile.DemolishTile(townTileList.Begin());
-			while(!AIRoad.BuildRoadStation(townTileList.Begin(), i, true, false, false)) {
+			while(!AIRoad.BuildRoadStation(townTileList.Begin(), i, true, true, false)) {
 				Sleep(100);
 				switch (AIError.GetLastError()) {
 				case AIError.ERR_AREA_NOT_CLEAR:
@@ -155,6 +180,5 @@ function Trucks::BuildTruckStation(industryUsing, cargo, start)
 		}
 	}
 	AILog.Warning(AIError.GetLastErrorString());
-	AILog.Info("This Station Location: " + thisStation.location);
 	return thisStation;
 }

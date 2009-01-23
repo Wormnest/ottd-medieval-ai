@@ -48,7 +48,7 @@ function Buses::BuildBusRoute(cargos)
 		return false;
 	}
 	AILog.Info("firstStop: " + firstStop.location + ", secondStop: " + secondStop.location);
-	if(Paths.FindPath(firstStop, secondStop)) 
+	if(Paths.FindPath(firstStop, secondStop, false)) 
 	{ 
 		depot = Buses.FindDepot(secondStop.location);
 		if(!depot)
@@ -190,43 +190,43 @@ function Buses::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 				return 1;
 		}
 	})
-	AILog.Info("Count: " + townTileList.Count());
+	//AILog.Info("Count: " + townTileList.Count());
 	townTileList.KeepValue(0);
-	AILog.Info("Count: " + townTileList.Count());	
+	//AILog.Info("Count: " + townTileList.Count());	
 	townTileList.Valuate(AIRoad.GetNeighbourRoadCount);
 	townTileList.KeepAboveValue(0);
-	AILog.Info("Count: " + townTileList.Count());	
+	//AILog.Info("Count: " + townTileList.Count());	
 	townTileList.Valuate(GetAdjacentTiles, true);
-	AILog.Info("Count: " + townTileList.Count());
+	//AILog.Info("Count: " + townTileList.Count());
 	townTileList.KeepValue(0);
-	AILog.Info("Count: " + townTileList.Count());
+	//AILog.Info("Count: " + townTileList.Count());
 	townTileList.Valuate(AITile.GetCargoProduction, cargos, 1, 1, stationRadius);
 	townTileList.KeepAboveValue(4);
 	townTileList.Valuate(AITile.GetCargoAcceptance, cargos, 1, 1, stationRadius);
 	townTileList.KeepAboveValue(7);
 	townTileList.KeepTop(1);
-	AILog.Info("Count: " + townTileList.Count());
+	//AILog.Info("Count: " + townTileList.Count());
 	//townTileList.Valuate(AITown.GetLocation);
 	local randTile = Tile();
 	randTile.SetAttribs(townTileList.Begin());
-	AILog.Warning(randTile.location + " <-- Location");
-	AILog.Error("Tile No.: " + townTileList.Count());
+	//AILog.Warning(randTile.location + " <-- Location");
+	//AILog.Error("Tile No.: " + townTileList.Count());
 	local adjacentTiles = GetAdjacentTiles(randTile.location, false);
-	AILog.Info("4");
+	//AILog.Info("4");
 	local isStationBuilt = false;
 	local thisStation = Tile();
-	AILog.Info("5");
+	//AILog.Info("5");
 	for(local i = adjacentTiles.Begin(); adjacentTiles.HasNext(); i = adjacentTiles.Next()) {
 		if(AIRoad.IsRoadTile(i) && !isStationBuilt) {
 			AITile.DemolishTile(townTileList.Begin());
 			AIRoad.BuildRoad(townTileList.Begin(), i);
 			AITile.DemolishTile(townTileList.Begin());
-			AILog.Info("5a");
+		//	AILog.Info("5a");
 			while(!AIRoad.BuildRoadStation(townTileList.Begin(), i, false, false, false)) 
 			{		
 				Sleep(100);
 				AILog.Info("5b");
-				AILog.Error(AIError.GetLastErrorString());
+				//AILog.Error(AIError.GetLastErrorString());
 				switch (AIError.GetLastError()) {
 				case AIError.ERR_AREA_NOT_CLEAR:
 					if(!AITile.DemolishTile(townTileList.Begin()))
@@ -250,7 +250,6 @@ function Buses::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 	}
 	AILog.Info("6");
 	AILog.Warning(AIError.GetLastErrorString());
-	AILog.Info("This Station Location: " + thisStation.location);
 	return thisStation;
 }
 
