@@ -30,10 +30,10 @@ function MedievalAI::Start()
 	//NAME COMPANY
 	if (!AICompany.SetName("MedievalAI #1")) 
 	{
-		for(local i = 0; ; i++)
-		{
+		local i = 2;
+		while(!AICompany.SetName("MedievalAI #" + i))
+			i++;
 		
-		}
 	}
 		
 	//REMOVE SIGNS
