@@ -28,23 +28,14 @@ function MedievalAI::Start()
 {
 	this.Sleep(1);
 	//NAME COMPANY
-	if (!AICompany.SetName("MedievalAI the 1st")) {
-		if (!AICompany.SetName("MedievalAI the 2nd")) {
-			if (!AICompany.SetName("MedievalAI the 3rd")) {
-				if (!AICompany.SetName("MedievalAI the 4th")) {
-					if (!AICompany.SetName("MedievalAI the 5th")) {
-						if (!AICompany.SetName("MedievalAI the 6th")) {
-							if (!AICompany.SetName("MedievalAI the 7th")) {
-								if (!AICompany.SetName("MedievalAI the 8th")) {
-									AICompany.SetName("Default Name, all others taken, which is physically impossible")
-								}
-							}
-						}
-					}
-				}
-			}
+	if (!AICompany.SetName("MedievalAI #1")) 
+	{
+		for(local i = 0; ; i++)
+		{
+		
 		}
 	}
+		
 	//REMOVE SIGNS
 	for(local i = 0; i < AISign.GetMaxSignID() -1; i++) {
 		AISign.RemoveSign(i);
@@ -108,7 +99,7 @@ function MedievalAI::Start()
 			Vehicles.CheckForNegativeIncome();
 			Vehicles.CheckOldVehicles();
 			Vehicles.SellInDepot();
-			(balance > 5000) ? Vehicles.CheckForVehiclesNeeded(myCargos.passengers) : loanNeeded = true;
+			(balance > 5000) ? Vehicles.CheckForVehiclesNeeded() : loanNeeded = true;
 			if(AIBase.RandRange(2) == 0)
 			{
 				(balance > 30000) ?	Buses.BuildBusRoute(myCargos.passengers) : loanNeeded = true;
@@ -163,7 +154,6 @@ function BuildRoadDepot(depotLocation)
 	townTileList.KeepValue(0);
 		if(!townTileList.IsEmpty()) {
 			depotLocation = townTileList.Begin();
-			AILog.Info("Found Depot Location: " + townTileList.Begin());
 			break;
 		}
 	}
@@ -251,9 +241,9 @@ function GetAdjacentTiles(currNode, flat)
 		}
 		return 0
 	}	
-	AILog.Error(AIError.GetLastErrorString());
+	//AILog.Error(AIError.GetLastErrorString());
 	adjTiles.Valuate(AITown.GetLocation);
-	AILog.Error(AIError.GetLastErrorString() + ", TOWN");
+	//AILog.Error(AIError.GetLastErrorString() + ", TOWN");
 	return adjTiles;		
 }
 
@@ -294,6 +284,32 @@ function GetBuildableAdjacentTiles(currTile, direction)
 			}
 			break;
 		
+		case AITile.SLOPE_NS:	
+		case AITile.SLOPE_EW:
+			switch(direction)
+			{
+				case Paths.NE:
+					adjTiles.AddTile(SW_TILE.location);
+					adjTiles.AddTile(NW_TILE.location);
+					adjTiles.AddTile(SE_TILE.location);
+					break;
+				case Paths.SE:
+					adjTiles.AddTile(NW_TILE.location);
+					adjTiles.AddTile(NE_TILE.location);
+					adjTiles.AddTile(SW_TILE.location);
+					break;
+				case Paths.NW:
+					adjTiles.AddTile(SE_TILE.location);
+					adjTiles.AddTile(NE_TILE.location);
+					adjTiles.AddTile(SW_TILE.location);
+					break;
+				case Paths.SW:
+					adjTiles.AddTile(NE_TILE.location);
+					adjTiles.AddTile(NW_TILE.location);
+					adjTiles.AddTile(SE_TILE.location);
+					break;
+			}
+			
 		case AITile.SLOPE_STEEP_N:
 			switch(direction)
 			{
@@ -547,7 +563,7 @@ function GetBuildableAdjacentTiles(currTile, direction)
 			
 		default:
 			AILog.Error("Slope not supported");
-			AISign.BuildSign(currTile.location, "HERE");
+			AISign.BuildSign(currTile.location, "Unknown Slope!");
 	}
 	return adjTiles;		
 }

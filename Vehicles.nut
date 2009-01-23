@@ -5,7 +5,7 @@ class Vehicles
 	function AddVehiclesToRoute(cargo, depot, firstStation, secondStation);
 	function CheckForNegativeIncome();
 	function SellInDepot();
-	function CheckForVehiclesNeeded(cargos);
+	function CheckForVehiclesNeeded();
 	function CheckOldVehicles();
 }
 
@@ -38,7 +38,7 @@ function Vehicles::AddVehiclesToRoute(cargo, depot, fakeFirstStation, fakeSecond
 	
 	if(AICargo.IsFreight(cargo))
 	{
-		for(local i = 0; i < numVehicles*3; i++)
+		for(local i = 0; i < numVehicles * 2; i++)
 		{
 			AILog.Info("i: " + i + ", numVehicles: " + numVehicles);
 			local currVehicle = AIVehicle.BuildVehicle(depot, vehcileList.Begin());
@@ -72,7 +72,10 @@ function Vehicles::CheckForNegativeIncome()
 	negativeVehicles.KeepAboveValue(200);
 	for(local i = negativeVehicles.Begin(); negativeVehicles.HasNext(); i = negativeVehicles.Next()) 
 	{
-		AIVehicle.SendVehicleToDepot(i);
+		local stations = AIStationList_Vehicle(i);
+		local vehicles = AIVehicleList_Station(stations.Begin());
+		if(vehicles.Count() > 1)
+			AIVehicle.SendVehicleToDepot(i);
 	}
 }
 
@@ -97,175 +100,139 @@ function Vehicles::SellInDepot()
 	}
 }
 
-function Vehicles::CheckForVehiclesNeeded(cargo)
+function Vehicles::CheckForVehiclesNeeded()
 {
-	AILog.Info("Checking Vehicles: " + AICargo.GetCargoLabel(cargo));
-	local vehicleList = AIEngineList(AIVehicle.VT_ROAD);
+	AILog.Info("Checking if there are extra road vehicles needed");
 	
-	vehicleList.Valuate(AIEngine.GetCargoType);
-	vehicleList.KeepValue(cargo);
-	vehicleList.Valuate(AIEngine.GetCapacity);
-	vehicleList.KeepTop(1);
-	AILog.Info("Vehicle Count: " + vehicleList.Count());
+	local cargoList = AICargoList();
 	
-	local stationList = AIStationList(AIStation.STATION_TRUCK_STOP);
-	stationList.Valuate(AIStation.GetCargoWaiting, cargo);
-	stationList.KeepAboveValue(130);
-	AILog.Info("Station Count: " + stationList.Count());
-	for(local i = stationList.Begin(); stationList.HasNext(); i = stationList.Next())
+	
+	local vehicleList = AIList();
+	local stationList = AIList();
+	
+	for(local i = cargoList.Begin(); cargoList.HasNext(); i = cargoList.Next())
 	{
-		local depotLocation = Buses.FindDepot(AIStation.GetLocation(i))
-		if(depotLocation == false) 
+		vehicleList = AIEngineList(AIVehicle.VT_ROAD);
+	
+		vehicleList.Valuate(AIEngine.GetCargoType);
+		vehicleList.KeepValue(i);
+		vehicleList.Valuate(AIEngine.GetCapacity);
+		vehicleList.KeepTop(1);
+		
+		if(AICargo.HasCargoClass(i, AICargo.CC_PASSENGERS))
 		{
-			AILog.Info("Building a depot");
-			depotLocation = BuildRoadDepot(AIStation.GetLocation(i));
+			stationList = AIStationList(AIStation.STATION_BUS_STOP);
 		}
-		local stationVehicles = AIVehicleList_Station(i);
-		local vehicleStations = AIStationList_Vehicle(stationVehicles.Begin());
-		local iter = vehicleStations.Begin();
-		local stationOne = iter;
-		iter = vehicleStations.Next();
-		local stationTwo = iter;
-		stationOne = AIStation.GetLocation(stationOne);
-		stationTwo = AIStation.GetLocation(stationTwo);
-		local stationDistance = AITile.GetDistanceManhattanToTile(stationOne, stationTwo);	
-		if(stationDistance / stationVehicles.Count() < 2)
-		{
-			return;
-		}
+		
 		else
 		{
-			local vehiclesNeeded = AIStation.GetCargoWaiting(i, cargo) / 130;	
-			AILog.Info(vehiclesNeeded + "");
-			for(local i = 0; i < vehiclesNeeded; i++)
+			stationList = AIStationList(AIStation.STATION_TRUCK_STOP);
+		}
+		
+		stationList.Valuate(AIStation.GetCargoWaiting, i);
+		stationList.KeepAboveValue(130);
+		AILog.Info(AICargo.GetCargoLabel(i) + " Station Count: " + stationList.Count());
+		for(local j = stationList.Begin(); stationList.HasNext(); j = stationList.Next())
+		{
+			local depotLocation = Buses.FindDepot(AIStation.GetLocation(j))
+			if(depotLocation == false) 
+			{
+				AILog.Info("Building a depot");
+				depotLocation = BuildRoadDepot(AIStation.GetLocation(j));
+			}
+			local stationVehicles = AIVehicleList_Station(j);
+			local vehicleStations = AIStationList_Vehicle(stationVehicles.Begin());
+			local iter = vehicleStations.Begin();
+			local stationOne = iter;
+			iter = vehicleStations.Next();
+			local stationTwo = iter;
+			stationOne = AIStation.GetLocation(stationOne);
+			stationTwo = AIStation.GetLocation(stationTwo);
+			local stationDistance = AITile.GetDistanceManhattanToTile(stationOne, stationTwo);	
+			if(stationDistance / stationVehicles.Count() < 2)
+			{
+				AILog.Info("Building Extra Station");
+				local adjTiles = GetAdjacentTiles(AIStation.GetLocation(i), false);
+				adjTiles.Valuate(GetAdjacentTiles, true);
+				adjTiles.KeepValue(0);
+				adjTiles.Valuate(AIRoad.IsRoadTile);
+				adjTiles.KeepValue(0);
+				adjTiles.Valuate(AIRoad.GetNeighbourRoadCount);
+				adjTiles.KeepAboveValue(0);
+				local lowestCost = -1;
+				local keepTile = AITileList();
+				for(local demolishTest = adjTiles.Begin(); adjTiles.HasNext(); demolishTest = adjTiles.Next())
+				{
+					local testMode = AITestMode();
+					local costs = AIAccounting();
+					AITile.DemolishTile(demolishTest);
+					if(costs.GetCosts() < lowestCost || lowestCost == -1)
 					{
-						local newVehicle = AIVehicle.BuildVehicle(depotLocation, vehicleList.Begin());
-						AILog.Info(AIError.GetLastErrorString());
-						AIOrder.ShareOrders(newVehicle, stationVehicles.Begin());
-						AIVehicle.StartStopVehicle(newVehicle);	
+						lowestCost = costs.GetCosts();
+						keepTile.KeepValue(demolishTest);
 					}
+				}
+				adjTiles.Clear()
+				adjTiles.AddList(keepTile);
+				// adjTiles.Valuate(function (tile)
+				// {
+					// local testMode = AITestMode();
+					// local costs = AIAccounting();
+					// AITile.DemolishTile(tile);
+					// return costs.GetCosts();
+				// })
+				//adjTiles.KeepBottom(1);
+				local adjToNew = GetAdjacentTiles(adjTiles.Begin(), false);
+				local isStationBuilt = false;
+				for(local k = adjToNew.Begin(); adjToNew.HasNext(); k = adjToNew.Next()) 
+				{
+					if(AIRoad.IsRoadTile(k) && !isStationBuilt) 
+					{
+						AITile.DemolishTile(adjTiles.Begin());
+						AIRoad.BuildRoad(adjTiles.Begin(), k);
+						AITile.DemolishTile(adjTiles.Begin());
+						while(!AIRoad.BuildRoadStation(adjTiles.Begin(), k, false, false, true)) 
+						{
+							Sleep(100);
+							switch (AIError.GetLastError()) 
+							{
+								case AIError.ERR_AREA_NOT_CLEAR:
+								AITile.DemolishTile(adjTiles.Begin());
+								break;
+								default:
+							}
+						}
+						thisStation.SetAttribs(adjTiles.Begin());
+						isStationBuilt = true
+					}
+				}
+			}
+			else
+			{
+				local vehiclesNeeded = AIStation.GetCargoWaiting(j, i) / 130;
+				local vehiclesCanAfford = 0;
+		
+				local vehiclePrice = AIEngine.GetPrice(vehicleList.Begin());
+				AILog.Info(AIEngine.GetName(vehicleList.Begin()) + "");
+				//AILog.Info(AIError.GetLastErrorString());
+				AILog.Info("Vehicles needed: " + vehiclesNeeded + ", Total cost: $" + vehiclePrice * vehiclesNeeded);
+				AILog.Info("Can build max. of " + GetBalance() / vehiclePrice + " vehicles");
+				vehiclesCanAfford = GetBalance() / vehiclePrice;
+				AILog.Info("Balance: $" + GetBalance());
+
+				if(vehiclesCanAfford < vehiclesNeeded)
+						Loan();
+					
+				AILog.Info("Balance: $" + GetBalance());
+				
+				for(local l = 0; l < vehiclesNeeded; l++)
+				{
+					local newVehicle = AIVehicle.BuildVehicle(depotLocation, vehicleList.Begin());
+					//AILog.Info(AIError.GetLastErrorString());
+					AIOrder.ShareOrders(newVehicle, stationVehicles.Begin());
+					AIVehicle.StartStopVehicle(newVehicle);	
+				}
+			}
 		}
 	}
 }
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	
-	// local passStations = AIStationList(AIStation.STATION_BUS_STOP);
-
-	// if(!passStations.IsEmpty()) 
-	// {
-		// for(local i = passStations.Begin(); passStations.HasNext(); i = passStations.Next()) 
-		// {
-			// if(AIStation.GetCargoWaiting(i, cargos.passengers) >= 150 || AIStation.GetCargoRating(i, cargos.passengers) < 50) 
-			// { 
-				// local balance = AICompany.GetBankBalance(AICompany.COMPANY_SELF);
-				// local loan = AICompany.GetLoanAmount();
-				// local maxLoan = AICompany.GetMaxLoanAmount();
-				// AILog.Info("Station needs updating: " + AIStation.GetName(i)); 
-				// local depotLocation = Bus.FindDepot(AIStation.GetLocation(i))
-				// if(depotLocation == false) 
-				// {
-					// AILog.Info("Building a depot");
-					// depotLocation = BuildRoadDepot(AIStation.GetLocation(i));
-				// }
-					
-				// local stationVehicles = AIVehicleList_Station(i);
-				// local vehicleStations = AIStationList_Vehicle(stationVehicles.Begin());
-				
-				// local iter = vehicleStations.Begin();
-				// local distStationOne = iter;
-				// iter = vehicleStations.Next();
-				// local distStationTwo = iter;
-				// distStationOne = AIStation.GetLocation(distStationOne);
-				// distStationTwo = AIStation.GetLocation(distStationTwo);
-				// local stationDistance = AITile.GetDistanceManhattanToTile(distStationOne, distStationTwo);		
-				
-				// if(balance < 5000) 
-				// {
-					// if(loan == maxLoan) 
-					// {
-						// return false;
-					// }
-					// if(loan + 10000 <= maxLoan) 
-					// {	
-						// AICompany.SetLoanAmount(loan + 10000)
-					// }
-					// else 
-					// {
-						// return false;
-					// }
-				// }
-				
-				// if(stationDistance / stationVehicles.Count() >= 2)
-				// {
-					// local numBuses = AIStation.GetCargoWaiting(i, cargos.passengers) / 150;
-					// if(AIStation.GetCargoRating(i, cargos.passengers) < 50)
-					// {
-						// numBuses++;
-					// }
-					// AILog.Info("Attempting to add " + numBuses + " buses to a route");
-					// local newVehicle = null;
-					
-					// for(local i = 0; i < numBuses; i++)
-					// {
-						// newVehicle = AIVehicle.BuildVehicle(depotLocation, vehcileList.Begin());
-						// AILog.Info(AIError.GetLastErrorString());
-						// AIOrder.ShareOrders(newVehicle, stationVehicles.Begin());
-						// AIVehicle.StartStopVehicle(newVehicle);	
-					// }
-				// }
-				// else
-				// {
-					// AILog.Error("Building Extra Station");
-					// local adjTiles = GetAdjacentTiles(AIStation.GetLocation(i), false);
-					// adjTiles.Valuate(GetAdjacentTiles, true);
-					// adjTiles.KeepValue(0);
-					// adjTiles.Valuate(AIRoad.IsRoadTile);
-					// adjTiles.KeepValue(0);
-					// adjTiles.Valuate(AIRoad.GetNeighbourRoadCount);
-					// adjTiles.KeepAboveValue(0);
-					// adjTiles.Valuate(function (tile)
-					// {
-						// local testMode = AITestMode();
-						// local costs = AIAccounting();
-						// AITile.DemolishTile(node.tile.location, node.parentNode.tile.location);
-						// return costs.GetCosts();
-					// })
-					// adjTiles.KeepBottom(1);
-					// local adjToNew = GetAdjacentTiles(adjTiles.Begin(), false);
-					// local isStationBuilt = false;
-					// for(local i = adjToNew.Begin(); adjToNew.HasNext(); i = adjToNew.Next()) 
-					// {
-						// if(AIRoad.IsRoadTile(i) && !isStationBuilt) {
-							// AITile.DemolishTile(adjTiles.Begin());
-							// AIRoad.BuildRoad(adjTiles.Begin(), i);
-							// AITile.DemolishTile(adjTiles.Begin());
-							// while(!AIRoad.BuildRoadStation(adjTiles.Begin(), i, false, false, true)) {
-								// Sleep(100);
-								// switch (AIError.GetLastError()) {
-								// case AIError.ERR_AREA_NOT_CLEAR:
-									// AITile.DemolishTile(adjTiles.Begin());
-									// break;
-								// default:
-								// }
-							// }
-							//thisStation.SetAttribs(adjTiles.Begin());
-							// isStationBuilt = true
-						// }
-					// }
-				// }
-			// }
-		// }
-	// }
-// }
