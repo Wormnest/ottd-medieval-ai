@@ -27,32 +27,31 @@ function MedievalAI::Save()
 function MedievalAI::Start()
 {
 	this.Sleep(1);
+	
 	//NAME COMPANY
 	if (!AICompany.SetName("MedievalAI #1")) 
 	{
 		local i = 2;
 		while(!AICompany.SetName("MedievalAI #" + i))
 			i++;
-		
 	}
 		
 	//REMOVE SIGNS
 	for(local i = 0; i < AISign.GetMaxSignID() -1; i++) {
 		AISign.RemoveSign(i);
 	}
-	//START AI
-	AILog.Info("AI Starting: MedievalAI. Defeat Starting: Yours");
+	
+	//INITALIZE AI
+	AILog.Info("MedievalAI, now 99% fat free");
 	AIRoad.SetCurrentRoadType(AIRoad.ROADTYPE_ROAD);
-	AILog.Info("Current road type: " + AIRoad.GetCurrentRoadType());
+	
 	local balance = AICompany.GetBankBalance(AICompany.COMPANY_SELF);
 	local loan = AICompany.GetLoanAmount();
 	local maxLoan = AICompany.GetMaxLoanAmount();
 	local loanNeeded = false;
 		
 	local date = AIDate.GetCurrentDate();
-	local currentDate = 0;
 	
-	local myCargos = Cargos();
 	local gameSettings = Settings();
 	
 	//CHECK FOR BUILD ON SLOPES
@@ -63,24 +62,19 @@ function MedievalAI::Start()
 	
 	//BUILD INITIAL ROUTE
 	//Trucks.BuildTruckRoute();
-	Buses.BuildBusRoute(myCargos.passengers);
+	Buses.BuildBusRoute();
+	
 	//MAIN LOOP
 	for(;;) 
 	{
-		balance = GetBalance();
-		loan = AICompany.GetLoanAmount();
-		maxLoan = AICompany.GetMaxLoanAmount();
+		local balance = GetBalance();
+		local loan = AICompany.GetLoanAmount();
+		local maxLoan = AICompany.GetMaxLoanAmount();
 		
 		//GET LOAN
 		if(loanNeeded || balance < 20000) 
 		{
-			if(balance < 10000)
-			{
-				AICompany.SetLoanAmount(loan + 10000);
-				loan = AICompany.GetLoanAmount();
-			}
-			AICompany.SetLoanAmount(loan + 10000);
-			loanNeeded = false;
+			Loan();
 		}
 
 		//PAYBACK LOAN
@@ -88,21 +82,22 @@ function MedievalAI::Start()
 		{
 			AICompany.SetLoanAmount(loan - 10000);
 			balance = GetBalance();
-			loan = loan = AICompany.GetLoanAmount();
+			loan = AICompany.GetLoanAmount();
 		}
 
-		currentDate = AIDate.GetCurrentDate()
-		if(currentDate - 30 >= date) 
+		if(AIDate.GetCurrentDate() - 30 >= date) 
 		{
-			AILog.Info("Managing Vehicles");
-			date = currentDate;
+			date = AIDate.GetCurrentDate();
+			
 			Vehicles.CheckForNegativeIncome();
 			Vehicles.CheckOldVehicles();
 			Vehicles.SellInDepot();
-			(balance > 5000) ? Vehicles.CheckForVehiclesNeeded() : loanNeeded = true;
+			
+			(balance > 10000) ? Vehicles.CheckForVehiclesNeeded() : loanNeeded = true;
+			
 			if(AIBase.RandRange(2) == 0)
 			{
-				(balance > 30000) ?	Buses.BuildBusRoute(myCargos.passengers) : loanNeeded = true;
+				(balance > 30000) ?	Buses.BuildBusRoute() : loanNeeded = true;
 			}
 			else
 			{
@@ -133,12 +128,28 @@ function MedievalAI::HandleEvents()
 function BuildRoadDepot(depotLocation)
 {
 	local townTileList = AITileList();
-	for(local i = 1;; i ++) {
+	for(local i = 1;; i ++) 
+	{
 		townTileList.AddRectangle(depotLocation - AIMap.GetTileIndex(i, i), depotLocation + AIMap.GetTileIndex(i, i));
 		townTileList.Valuate(AITile.IsBuildable)
 		townTileList.KeepValue(1)
-		townTileList.Valuate(AIRoad.GetNeighbourRoadCount)
-		townTileList.KeepAboveValue(0)
+		townTileList.Valuate(function (tile) 
+		{
+			local adjTiles = AITileList();
+			adjTiles.AddTile(tile - AIMap.GetTileIndex(1,0));
+			adjTiles.AddTile(tile - AIMap.GetTileIndex(0,1));
+			adjTiles.AddTile(tile - AIMap.GetTileIndex(-1,0));
+			adjTiles.AddTile(tile - AIMap.GetTileIndex(0,-1));
+			for(local j = adjTiles.Begin(); adjTiles.HasNext(); j = adjTiles.Next())
+			{
+				if(AIRoad.IsDriveThroughRoadStationTile(j))
+					return 0;
+			}
+			return 1;
+		})
+		townTileList.KeepValue(1);
+		townTileList.Valuate(AIRoad.GetNeighbourRoadCount);
+		townTileList.KeepAboveValue(0);
 		townTileList.Valuate(function (tile) 
 		{
 			switch(AITile.GetSlope(tile)) {
@@ -149,10 +160,11 @@ function BuildRoadDepot(depotLocation)
 					return 1;
 			}
 		})
-	townTileList.KeepValue(0); 
-	townTileList.Valuate(GetAdjacentTiles, true);
-	townTileList.KeepValue(0);
-		if(!townTileList.IsEmpty()) {
+		townTileList.KeepValue(0); 
+		townTileList.Valuate(GetAdjacentTiles, true);
+		townTileList.KeepValue(0);
+		if(!townTileList.IsEmpty()) 
+		{
 			depotLocation = townTileList.Begin();
 			break;
 		}
@@ -174,23 +186,6 @@ function BuildRoadDepot(depotLocation)
 	return townTileList.Begin()
 }
 
-
-function KeepFlatSlopes(tile)
-{
-}
-
-function CanLoan()
-{
-	if(AICompany.GetLoanAmount() < AICompany.GetMaxLoanAmount())
-	{
-		return true;
-	}
-	else
-	{
-		return false;
-	}
-}
-
 function Loan()
 {
 	while(AICompany.GetLoanAmount() < AICompany.GetMaxLoanAmount())
@@ -202,24 +197,6 @@ function Loan()
 function GetBalance()
 {
 	return AICompany.GetBankBalance(AICompany.COMPANY_SELF);
-}
-
-class Cargos
-{
-	cargoList = null
-	passengers = null
-	
-	constructor() {
-		cargoList = AICargoList();
-		passengers = null
-		for(local cargo = cargoList.Begin(); cargoList.HasNext(); cargo = cargoList.Next()) {
-			if(AICargo.HasCargoClass(cargo, AICargo.CC_PASSENGERS)) {
-				passengers = cargo
-				break;
-			}
-		}
-		if(passengers == null) {AILog.Info("Passengers aren't a cargo!")}
-	}
 }
 	
 function GetAdjacentTiles(currNode, flat)
@@ -242,9 +219,21 @@ function GetAdjacentTiles(currNode, flat)
 		return 0
 	}	
 	//AILog.Error(AIError.GetLastErrorString());
+	if(adjTiles.Count() == 0)
+	{
+		AILog.Info("adjTiles:C - " + adjTiles.Count());
+		AILog.Info("Valid? " + AIMap.IsValidTile(currNode))
+		Sleep(100);
+	}
+	
 	adjTiles.Valuate(AITown.GetLocation);
 	//AILog.Error(AIError.GetLastErrorString() + ", TOWN");
 	return adjTiles;		
+}
+
+function KeepFlatTile()
+{
+	
 }
 
 function GetBuildableAdjacentTiles(currTile, direction)

@@ -11,17 +11,27 @@ class Vehicles
 
 function Vehicles::AddVehiclesToRoute(cargo, depot, fakeFirstStation, fakeSecondStation)
 {
+	AILog.Info("Adding vehicles to route");
 	local firstStation = Tile();
 		firstStation.SetAttribs(AIRoad.GetRoadStationFrontTile(fakeFirstStation.location));
 	local secondStation = Tile();
 		secondStation.SetAttribs(AIRoad.GetRoadStationFrontTile(fakeSecondStation.location));	
 
-	local vehcileList = AIEngineList(AIVehicle.VT_ROAD)
+	local vehicleList = AIEngineList(AIVehicle.VT_ROAD)
 	
-	vehcileList.Valuate(AIEngine.GetCargoType)
-	vehcileList.KeepValue(cargo)
-	vehcileList.Valuate(AIEngine.GetCapacity)
-	vehcileList.KeepTop(1)
+	vehicleList.Valuate(AIEngine.CanRefitCargo, cargo)
+	vehicleList.KeepValue(1)
+	if(!AICargo.IsFreight(cargo))
+	{
+		vehicleList.Valuate(AIEngine.IsArticulated);
+		vehicleList.KeepValue(0);
+	}
+	vehicleList.Valuate(AIEngine.GetRoadType);
+	vehicleList.KeepValue(AIRoad.ROADTYPE_ROAD);
+	vehicleList.Valuate(AIEngine.GetCapacity)
+	vehicleList.KeepTop(1)
+	AILog.Info("No. of Vehicles: " + vehicleList.Count());
+	AILog.Info(AIEngine.GetName(vehicleList.Begin()));
 	local adjTiles = GetAdjacentTiles(firstStation.location, false)
 	adjTiles.Valuate(AITile.IsStationTile)
 	adjTiles.KeepValue(1)
@@ -36,12 +46,15 @@ function Vehicles::AddVehiclesToRoute(cargo, depot, fakeFirstStation, fakeSecond
 		numVehicles += 2
 	}
 	
+	Loan();
+	
 	if(AICargo.IsFreight(cargo))
 	{
 		for(local i = 0; i < numVehicles * 2; i++)
 		{
-			AILog.Info("i: " + i + ", numVehicles: " + numVehicles);
-			local currVehicle = AIVehicle.BuildVehicle(depot, vehcileList.Begin());
+			//AILog.Info("i: " + i + ", numVehicles: " + numVehicles);
+			local currVehicle = AIVehicle.BuildVehicle(depot, vehicleList.Begin());
+			AIVehicle.RefitVehicle(currVehicle, cargo);
 			AIOrder.AppendOrder(currVehicle, firstStation, AIOrder.AIOF_FULL_LOAD_ANY);
 			AIOrder.AppendOrder(currVehicle, secondStation, AIOrder.AIOF_NONE);
 			AIVehicle.StartStopVehicle(currVehicle);
@@ -51,12 +64,14 @@ function Vehicles::AddVehiclesToRoute(cargo, depot, fakeFirstStation, fakeSecond
 	
 	for(local i = 0; i < numVehicles/2; i++) 
 	{
-		local currVehicle = AIVehicle.BuildVehicle(depot, vehcileList.Begin());
+		local currVehicle = AIVehicle.BuildVehicle(depot, vehicleList.Begin());
+		AIVehicle.RefitVehicle(currVehicle, cargo);
 		AIOrder.AppendOrder(currVehicle, firstStation, AIOrder.AIOF_NONE);
 		AIOrder.AppendOrder(currVehicle, secondStation, AIOrder.AIOF_NONE);
 		AIVehicle.StartStopVehicle(currVehicle);
 		
-		currVehicle = AIVehicle.BuildVehicle(depot, vehcileList.Begin());
+		currVehicle = AIVehicle.BuildVehicle(depot, vehicleList.Begin());
+		AIVehicle.RefitVehicle(currVehicle, cargo);
 		AIOrder.AppendOrder(currVehicle, secondStation, AIOrder.AIOF_NONE);
 		AIOrder.AppendOrder(currVehicle, firstStation, AIOrder.AIOF_NONE);
 		AIVehicle.StartStopVehicle(currVehicle);
@@ -69,7 +84,7 @@ function Vehicles::CheckForNegativeIncome()
 	negativeVehicles.Valuate(AIVehicle.GetProfitLastYear);
 	negativeVehicles.KeepBelowValue(-200);
 	negativeVehicles.Valuate(AIVehicle.GetAge);
-	negativeVehicles.KeepAboveValue(200);
+	negativeVehicles.KeepAboveValue(356);
 	for(local i = negativeVehicles.Begin(); negativeVehicles.HasNext(); i = negativeVehicles.Next()) 
 	{
 		local stations = AIStationList_Vehicle(i);
@@ -114,14 +129,19 @@ function Vehicles::CheckForVehiclesNeeded()
 	{
 		vehicleList = AIEngineList(AIVehicle.VT_ROAD);
 	
-		vehicleList.Valuate(AIEngine.GetCargoType);
-		vehicleList.KeepValue(i);
-		vehicleList.Valuate(AIEngine.GetCapacity);
-		vehicleList.KeepTop(1);
+		vehicleList.Valuate(AIEngine.CanRefitCargo, i)
+		vehicleList.KeepValue(1)
+		vehicleList.Valuate(AIEngine.GetCapacity)
+		vehicleList.KeepTop(1)
+		vehicleList.Valuate(AIEngine.GetRoadType);
+		vehicleList.KeepValue(AIRoad.ROADTYPE_ROAD);
 		
 		if(AICargo.HasCargoClass(i, AICargo.CC_PASSENGERS))
 		{
 			stationList = AIStationList(AIStation.STATION_BUS_STOP);
+	
+			vehicleList.Valuate(AIEngine.IsArticulated);
+			vehicleList.KeepValue(0);
 		}
 		
 		else
@@ -129,9 +149,14 @@ function Vehicles::CheckForVehiclesNeeded()
 			stationList = AIStationList(AIStation.STATION_TRUCK_STOP);
 		}
 		
+		vehicleList.Valuate(AIEngine.GetCapacity)
+		vehicleList.KeepTop(1)
+		
 		stationList.Valuate(AIStation.GetCargoWaiting, i);
 		stationList.KeepAboveValue(130);
-		AILog.Info(AICargo.GetCargoLabel(i) + " Station Count: " + stationList.Count());
+		if(stationList.Count() > 0)
+			AILog.Info(AICargo.GetCargoLabel(i) + " Station Count: " + stationList.Count());
+			
 		for(local j = stationList.Begin(); stationList.HasNext(); j = stationList.Next())
 		{
 			local depotLocation = Buses.FindDepot(AIStation.GetLocation(j))
@@ -142,6 +167,11 @@ function Vehicles::CheckForVehiclesNeeded()
 			}
 			local stationVehicles = AIVehicleList_Station(j);
 			local vehicleStations = AIStationList_Vehicle(stationVehicles.Begin());
+			if(vehicleStations.Count() < 2)
+			{
+				AIVehicle.SendVehicleToDepot(stationVehicles.Begin());
+				return false;
+			}
 			local iter = vehicleStations.Begin();
 			local stationOne = iter;
 			iter = vehicleStations.Next();
@@ -174,14 +204,7 @@ function Vehicles::CheckForVehiclesNeeded()
 				}
 				adjTiles.Clear()
 				adjTiles.AddList(keepTile);
-				// adjTiles.Valuate(function (tile)
-				// {
-					// local testMode = AITestMode();
-					// local costs = AIAccounting();
-					// AITile.DemolishTile(tile);
-					// return costs.GetCosts();
-				// })
-				//adjTiles.KeepBottom(1);
+
 				local adjToNew = GetAdjacentTiles(adjTiles.Begin(), false);
 				local isStationBuilt = false;
 				for(local k = adjToNew.Begin(); adjToNew.HasNext(); k = adjToNew.Next()) 
@@ -228,7 +251,7 @@ function Vehicles::CheckForVehiclesNeeded()
 				for(local l = 0; l < vehiclesNeeded; l++)
 				{
 					local newVehicle = AIVehicle.BuildVehicle(depotLocation, vehicleList.Begin());
-					//AILog.Info(AIError.GetLastErrorString());
+					AIVehicle.RefitVehicle(newVehicle, i);
 					AIOrder.ShareOrders(newVehicle, stationVehicles.Begin());
 					AIVehicle.StartStopVehicle(newVehicle);	
 				}
