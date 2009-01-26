@@ -103,7 +103,7 @@ function Paths::FindPath(startTile, endTile, truck)
 		{
 			if(!closedList.HasItem(i))
 			{
-				if(AITile.IsBuildable(i) || (AIRoad.IsRoadTile(i) && CanBuildRoadBetween(currNode.tile.location, i)))
+				if(AITile.IsBuildable(i) || (AIRoad.IsRoadTile(i) && CanBuildRoadBetween(currNode.tile.location, i)) && !AIRoad.IsDriveThroughRoadStationTile(i))
 				{
 					//AISign.BuildSign(i, "Child");
 					local node = Node();
@@ -147,8 +147,10 @@ function Paths::FindPath(startTile, endTile, truck)
 				}
 			}
 		}
+		//AILog.Info("1st: " + currNode.tile.location);
 		currNode = lowestHeur;
 		currNode.tile.SetAttribs(lowestHeur.tile.location);
+		//AILog.Info("2nd: " + currNode.tile.location);
 		direction = Paths.GetDirection(currNode);
 		routeCost = Paths.AddCostToRoute(currNode, routeCost);
 		closedList.AddTile(currNode.tile.location);
@@ -197,7 +199,11 @@ function Paths::BuildPath(startTile)
 				case AIError.ERR_VEHICLE_IN_THE_WAY:
 					while(AIError.GetLastError() == AIError.ERR_VEHICLE_IN_THE_WAY)
 						AIRoad.BuildRoad(startTile.tile.location, startTile.parentNode.tile.location);
-				break;
+					break;
+				case AIError.ERR_LAND_SLOPED_WRONG:
+					AITile.DemolishTile(startTile.parentNode.tile.location);
+					AIRoad.BuildRoad(startTile.tile.location, startTile.parentNode.tile.location);
+					break;
 					
 				default:
 			}

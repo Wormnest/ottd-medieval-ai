@@ -2,15 +2,23 @@ class Buses
 {
 	constructor()	
 	function FindPassTown(above, near, occupied);
-	function BuildPassStation(rectStart, rectEnd, townUsing, cargos);
+	function BuildPassStation(rectStart, rectEnd, townUsing, passengers);
 	function FindDepot(town);
 	function IsTownOccupied(townList);
-	function BuildBusRoute(cargos);
+	function BuildBusRoute();
 }
 
-function Buses::BuildBusRoute(cargos)
+function Buses::BuildBusRoute()
 {
-	AILog.Info("Starting Route");
+	AILog.Info("Planning Bus Route");
+	
+	//FIND PASSENGER CARGO
+	local cargoList = AICargoList();
+	cargoList.Valuate(AICargo.HasCargoClass, AICargo.CC_PASSENGERS);
+	cargoList.KeepValue(1);
+	local cargos = cargoList.Begin();
+	
+	//INITALIZE VARIABLES
 	local depot = null;
 	local townUsing = false;
 	local otherTown = false;
@@ -18,6 +26,8 @@ function Buses::BuildBusRoute(cargos)
 	local searchRadius = 8
 	local counter = 0;
 	local retries = 5;
+	
+	//FIND TOWNS TO USE
 	while(counter < retries) 
 	{ 
 		if(!townUsing)
@@ -39,31 +49,34 @@ function Buses::BuildBusRoute(cargos)
 		}
 	}
 
+	//BUILD BUS STOPS IN EACH TOWN
 	local firstStop = Buses.BuildPassStation(-searchRadius, searchRadius, townUsing, cargos);
-	AILog.Info("Built first stop");
-	local secondStop = Buses.BuildPassStation(-searchRadius, searchRadius, otherTown, cargos);
-	AILog.Info("Built second stop");	
-	if(!firstStop || !secondStop)
-	{
+	if(!firstStop)
 		return false;
-	}
-	AILog.Info("firstStop: " + firstStop.location + ", secondStop: " + secondStop.location);
+	AILog.Info("Built first stop: " + AIStation.GetName(AIStation.GetStationID(firstStop.location)));
+	local secondStop = Buses.BuildPassStation(-searchRadius, searchRadius, otherTown, cargos);
+	if(!secondStop)
+		return false;
+	AILog.Info("Built second stop: " + AIStation.GetName(AIStation.GetStationID(secondStop.location)));
+	
+	//FIND PATH BETWEEN STATIONS
 	if(Paths.FindPath(firstStop, secondStop, false)) 
 	{ 
+		//FIND/BUILD DEPOT
 		depot = Buses.FindDepot(secondStop.location);
 		if(!depot)
 		{
 			depot = BuildRoadDepot(secondStop.location);
 		}
+		//ADD VEHICLES TO ROUTE
 		Vehicles.AddVehiclesToRoute(cargos, depot, firstStop, secondStop);
 		AILog.Info("Route completed");
 	}
 	else
 	{
-		AILog.Info("Demolishing Tiles");
+		AILog.Info("Couldn't find path. Cleaning up and aborting.");
 		AITile.DemolishTile(firstStop.location);
 		AITile.DemolishTile(secondStop.location);
-		AILog.Info("Route could not be completed.");
 	}
 }
 
@@ -79,12 +92,12 @@ function Buses::IsTownOccupied(townList)
 		townTileList.KeepValue(1);
 		townTileList.Valuate(AITile.GetOwner);
 		townTileList.KeepValue(AICompany.ResolveCompanyID(AICompany.COMPANY_SELF));
-		if(townTileList.Count() > (AITown.GetPopulation(i) / 400)) 
+		if(townTileList.Count() > (AITown.GetPopulation(i) / 350)) 
 		{
 			AILog.Warning("Occupied: " + AITown.GetName(i))
 			townList.RemoveValue(AITown.GetLocation(i));
 		}
-		townTileList = AITileList();					
+		townTileList.Clear();					
 	}
 	return townList;
 }
@@ -159,7 +172,7 @@ function Buses::FindPassTown(above, near, occupied)
 	}
 }
 
-function Buses::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
+function Buses::BuildPassStation(rectStart, rectEnd, townUsing, passengers)
 {
 	local townList = AITownList();
 	local townTileList = AITileList();
@@ -200,19 +213,38 @@ function Buses::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 	//AILog.Info("Count: " + townTileList.Count());
 	townTileList.KeepValue(0);
 	//AILog.Info("Count: " + townTileList.Count());
-	townTileList.Valuate(AITile.GetCargoProduction, cargos, 1, 1, stationRadius);
+	townTileList.Valuate(AITile.GetCargoProduction, passengers, 1, 1, stationRadius);
 	townTileList.KeepAboveValue(4);
-	townTileList.Valuate(AITile.GetCargoAcceptance, cargos, 1, 1, stationRadius);
+	townTileList.Valuate(AITile.GetCargoAcceptance, passengers, 1, 1, stationRadius);
 	townTileList.KeepAboveValue(7);
 	townTileList.KeepTop(1);
-	//AILog.Info("Count: " + townTileList.Count());
-	//townTileList.Valuate(AITown.GetLocation);
+	local flat = false;
 	local randTile = Tile();
 	randTile.SetAttribs(townTileList.Begin());
-	//AILog.Warning(randTile.location + " <-- Location");
-	//AILog.Error("Tile No.: " + townTileList.Count());
-	local adjacentTiles = GetAdjacentTiles(randTile.location, false);
-	//AILog.Info("4");
+	local adjacentTiles = AITileList();
+	while(!flat)
+	{	
+		adjacentTiles = GetAdjacentTiles(randTile.location, false);
+		adjacentTiles.Valuate(function (tile) {
+		switch(AITile.GetSlope(tile)) {
+			case AITile.SLOPE_FLAT:
+			case AITile.SLOPE_NWS:
+			case AITile.SLOPE_WSE:
+			case AITile.SLOPE_SEN:
+			case AITile.SLOPE_ENW:
+				return 0;
+			
+			default:
+				return 1;
+		}
+	})
+	adjacentTiles.KeepValue(0);
+		if(!adjacentTiles.IsEmpty())
+		{
+			flat = true;
+		}
+		randTile.SetAttribs(townTileList.Next());
+	}
 	local isStationBuilt = false;
 	local thisStation = Tile();
 	//AILog.Info("5");
@@ -225,7 +257,7 @@ function Buses::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 			while(!AIRoad.BuildRoadStation(townTileList.Begin(), i, false, false, false)) 
 			{		
 				Sleep(100);
-				AILog.Info("5b");
+				//AILog.Info("5b");
 				//AILog.Error(AIError.GetLastErrorString());
 				switch (AIError.GetLastError()) {
 				case AIError.ERR_AREA_NOT_CLEAR:
@@ -236,6 +268,9 @@ function Buses::BuildPassStation(rectStart, rectEnd, townUsing, cargos)
 					}
 					AILog.Warning(AIError.GetLastErrorString());
 					break;
+				case AIError.ERR_OWNED_BY_ANOTHER_COMPANY:
+					AILog.Info("Somebody beat me to it!");
+					return false;
 				default:
 					AILog.Info("Abandoning Route");
 					return false;
