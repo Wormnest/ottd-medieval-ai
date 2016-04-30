@@ -1,0 +1,1 @@
+MedievalAI is an AI developed for the OpenTTD NoAI Framework written in Squirrel (soon to be NAIL) designed by me.
